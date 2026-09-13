@@ -30,16 +30,16 @@ HORIZONS = {'R': 5, 'S': 15, 'T': 27}      # Feb-27, Dec-27, Dec-28 as months af
 
 
 def recalc(src):
-    """Return a path to a copy of `src` whose cached values LibreOffice has just recomputed."""
-    out = tempfile.mkdtemp()
-    prof = tempfile.mkdtemp()
-    r = subprocess.run(['soffice', '--headless', '--norestore', f'-env:UserInstallation=file://{prof}',
-                        '--convert-to', 'xlsx', '--outdir', out, src],
-                       capture_output=True, text=True, timeout=180)
-    files = [f for f in os.listdir(out) if f.endswith('.xlsx')]
-    if not files:
-        raise SystemExit(f'LibreOffice produced nothing: {r.stderr[-400:]}')
-    return os.path.join(out, files[0])
+    """Return a path to a copy of `src` whose cached values have just been recomputed — by Excel where
+    it is installed, by LibreOffice otherwise. scripts/recalc.sh decides, and refuses if it has
+    neither: a parity proof that silently skipped would be no proof at all."""
+    out = os.path.join(tempfile.mkdtemp(), 'recalc.xlsx')
+    r = subprocess.run(['bash', os.path.join(ROOT, 'scripts/recalc.sh'), src, out],
+                       capture_output=True, text=True, timeout=240)
+    if r.returncode != 0 or not os.path.exists(out):
+        raise SystemExit(f'recalculation failed: {(r.stderr or r.stdout)[-400:]}')
+    print(f'  ({r.stdout.strip()})')
+    return out
 
 
 def to_date(v):

@@ -26,6 +26,10 @@ for i in issuers:
     for r in csv.DictReader(open(f'{d}/{i}-register.csv')):
         flag = r.get('reading_current') == '1'; ok = (r.get('last_read') or '') >= CURRENT_FROM
         if flag != ok: bad.append(f'{i}: {r["project"]} reading_current={r.get("reading_current")} but last_read={r.get("last_read")}')
+        # The gateway's certified % can be a per-building sum; above 100 it is not a reading and must never be published as one.
+        try: pct = float(r.get('certified_pct') or 'nan')
+        except ValueError: pct = float('nan')
+        if pct == pct and pct > 100: bad.append(f'{i}: {r["project"]} publishes certified_pct {pct} (>100 — a per-building sum, not a percentage)')
     print(f'{i}: {live} live, {cur} on a current reading, {len(stale)} not')
 if os.path.exists(db):
     n = sqlite3.connect(db).execute("SELECT COUNT(*) FROM project_observation WHERE source='dld' AND observed_at='2026-06-15'").fetchone()[0]

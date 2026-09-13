@@ -96,7 +96,7 @@ async function main() {
   const insDev = db.prepare(`INSERT OR IGNORE INTO developer(developer_number,name_en,slug) VALUES(?,?,?)`);
   const insObs = db.prepare(`INSERT OR IGNORE INTO project_observation(project_number,observed_at,status,percent_completed,completion_date,source) VALUES(?,?,?,?,?,?)`);
   const insSeen = db.prepare(`INSERT OR IGNORE INTO vintage(kind,id,first_seen) VALUES('project',?,?)`);
-  let newProjects = 0, obs = 0, undatedInspection = 0;
+  let newProjects = 0, obs = 0, undatedInspection = 0, overHundred = 0;
   db.transaction(() => {
     for (const r of rows) {
       const pn = String(r.PROJECT_NUMBER); const dev = r.DEVELOPER_NUMBER != null ? String(r.DEVELOPER_NUMBER) : null;
@@ -104,8 +104,12 @@ async function main() {
       if (!known.get(pn)) {
         const name = String(r.PROJECT_EN ?? pn).trim(); const area = normArea(r.AREA_EN); const areaSlug = slugify(area) || 'unknown';
         let slug = slugify(name) || pn; if (slugTaken.get(areaSlug, slug, pn)) slug = `${slug}-${pn}`;
+        // Unit counts from the gateway are doubled on finished towers (Ali's audit); the register
+        // extract carries the right ones. A new project here is by definition not in the extract, so
+        // take the gateway's count only while the tower is unfinished, and leave it blank otherwise.
+        const finished = String(r.PROJECT_STATUS ?? '').toUpperCase() === 'FINISHED';
         insProj.run(pn, name, slug, area, areaSlug, dev, r.MASTER_PROJECT_EN || null, null, iso(r.START_DATE), r.PROJECT_VALUE ?? null,
-          r.CNT_UNIT ?? null, r.CNT_VILLA ?? null, r.CNT_BUILDING ?? null);
+          finished ? null : (r.CNT_UNIT ?? null), finished ? null : (r.CNT_VILLA ?? null), r.CNT_BUILDING ?? null);
         insSeen.run(pn, today); newProjects++;
       }
       // The reading is dated by the register's own inspection date — the day an inspector certified
@@ -113,11 +117,16 @@ async function main() {
       // counted, and reported, because a reading we cannot date is a reading we should not trust silently.
       const when = iso(r.INSPECTION_DATE) ?? today; if (!iso(r.INSPECTION_DATE)) undatedInspection++;
       const completion = iso(r.COMPLETION_DATE) ?? iso(r.END_DATE);
-      obs += insObs.run(pn, when, r.PROJECT_STATUS ?? null, r.PERCENT_COMPLETED ?? null, completion, SOURCE).changes;
+      // The gateway's certified % can be a per-building SUM (Jouri Hills reads 222.6%), not a
+      // percentage. Above 100 it is not a reading: the status and dates are kept, the percentage is
+      // not (Ali's audit rule, 13 Sep 2026 — never cap it to 100, that would invent a number).
+      let pct: number | null = r.PERCENT_COMPLETED == null ? null : Number(r.PERCENT_COMPLETED);
+      if (pct != null && (!Number.isFinite(pct) || pct > 100)) { pct = null; overHundred++; }
+      obs += insObs.run(pn, when, r.PROJECT_STATUS ?? null, pct, completion, SOURCE).changes;
     }
   })();
   db.close();
-  console.log(`${newProjects} projects new to the database, ${obs} new observations (source '${SOURCE}'), ${undatedInspection} rows had no inspection date and were dated today`);
+  console.log(`${newProjects} projects new to the database, ${obs} new observations (source '${SOURCE}'), ${undatedInspection} rows had no inspection date and were dated today, ${overHundred} rows carried a certified % above 100 and were stored without one`);
   console.log('Now run: npm run issuer:data && npm run credit:books');
 }
 main().catch(e => { console.error(e); process.exit(1); });

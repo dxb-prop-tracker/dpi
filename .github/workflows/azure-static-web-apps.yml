@@ -1,13 +1,15 @@
-# Builds the site on a schedule (daily) and on push, then deploys to Azure Static Web Apps.
+# DISABLED FROM AUTOMATIC RUNS. This is the day-one starter: it seeds SAMPLE data and deploys that.
+# The real site is built from a 6 GB register database that is not in the repository, so a GitHub
+# runner cannot build it. Until the refresh chain moves into Azure (as Ali's has), the deploy runs
+# from the refresh machine after scripts/preship.sh passes. Left here, manual-only, as the skeleton
+# for that move — it must never deploy sample data over the live site by accident.
 # Secret required in the GitHub repo:
 #   AZURE_STATIC_WEB_APPS_API_TOKEN  – from the SWA resource in the Azure portal (Overview -> Manage deployment token)
 # Data: the starter seeds sample data. Replace the "Seed sample data" step with a step that downloads
 # your DLD CSVs (Dubai Pulse API) and listing scans into data/, then runs `npm run pipeline`.
 name: build-and-deploy
 on:
-  push: { branches: [main] }
-  schedule: [{ cron: '30 2 * * *' }]   # 06:30 Dubai, after Dubai Pulse's overnight sync
-  workflow_dispatch:
+  workflow_dispatch:   # manual only — see the note above
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest

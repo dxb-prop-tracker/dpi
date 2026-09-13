@@ -41,7 +41,14 @@ const COLS = ['project_number', 'project', 'area', 'status', 'certified_pct', 'r
   'last_read', 'units', 'sold_units', 'avg_ticket_aed', 'offplan_sales_all', 'offplan_value_aed', 'all_sales',
   'sales_12m', 'value_12m_aed', 'sales_prior_12m', 'sales_90d', 'avg_psm_12m', 'mortgages_12m',
   'resales_24m', 'resales_at_loss', 'avg_resale_change_pct', 'avg_hold_days', 'escrow_agent',
-  'first_sale', 'last_sale', 'project_start', 'is_live', 'ready_sales_since_bs', 'mortgages_since_bs'];
+  'first_sale', 'last_sale', 'project_start', 'is_live', 'ready_sales_since_bs', 'mortgages_since_bs', 'reading_current'];
+
+// A register reading counts as current when it was taken this year. The data.dubai API load is
+// October-2025 content (see ingest-dld.ts), so a project whose latest reading is that load has
+// no current percentage: the simulator still uses it (it can only understate progress), but the
+// handover check must not claim a tower "could have handed over" on an eleven-month-old reading.
+const CURRENT_FROM = '2026-01-01';
+const isCurrent = (r: any) => !!(r.last_read && r.last_read >= CURRENT_FROM);
 
 function issuerRows(db: any, devs: string[], balanceSheet: string) {
   const marks = devs.map(() => '?').join(',');
@@ -105,6 +112,7 @@ function main() {
     const table = [COLS, ...rows.map(r => COLS.map(c => {
       const v = (r as any)[c];
       if (c === 'escrow_agent') return agent(v);
+      if (c === 'reading_current') return isCurrent(r) ? 1 : 0;
       if (typeof v === 'number' && !Number.isInteger(v)) return Math.round(v * 100) / 100;
       return v;
     }))];
@@ -113,15 +121,16 @@ function main() {
     // Towers that could have handed over since the balance sheet date: anything finished with a
     // completion date after it, plus every live tower at 60%+ certified. The workbook's Handover
     // check tab reads this; the ready-sale and mortgage columns are the corroboration.
-    const cand = rows.filter(r => (r.status === 'FINISHED' && r.registered_completion && r.registered_completion >= '2026-01-01')
+    // Only a current reading can support the claim; projects without one are listed in meta instead.
+    const cand = rows.filter(r => isCurrent(r) && ((r.status === 'FINISHED' && r.registered_completion && r.registered_completion >= '2026-01-01')
       || (r.is_live && (r.certified_pct ?? 0) >= 60)
-      || (r.is_live && r.registered_completion && r.registered_completion <= today && (r.certified_pct ?? 0) >= 30));
+      || (r.is_live && r.registered_completion && r.registered_completion <= today && (r.certified_pct ?? 0) >= 30)));
     const HCOLS = ['project', 'units', 'sold_units', 'contracted_aed_m', 'certified_pct', 'registered_completion', 'status',
-      'ready_sales_since_bs', 'mortgages_since_bs', 'completed_after_balance_sheet'];
+      'ready_sales_since_bs', 'mortgages_since_bs', 'completed_after_balance_sheet', 'last_read'];
     const hand = [HCOLS, ...cand.map(r => [r.project, r.units, r.sold_units,
       Math.round((r.sold_units ?? 0) * (r.avg_ticket_aed ?? 0) / 1e6),
       r.certified_pct, r.registered_completion, r.status, r.ready_sales_since_bs, r.mortgages_since_bs,
-      (r.status === 'FINISHED' && r.registered_completion && r.registered_completion > balanceSheet) ? 1 : 0])];
+      (r.status === 'FINISHED' && r.registered_completion && r.registered_completion > balanceSheet) ? 1 : 0, r.last_read])];
     fs.writeFileSync(path.join(OUT_SITE, `${iss.id}-handover.csv`), csv(hand));
 
     const live = rows.filter(r => r.is_live);
@@ -129,6 +138,10 @@ function main() {
       issuer: iss.id, brand: iss.brand, dldDevelopers: devs, balanceSheetDate: balanceSheet,
       generatedAt: new Date().toISOString(), registerLastRead: registerRead, transactionsLastRead: txRead,
       projects: rows.length, liveProjects: live.length,
+      // How many live projects rest on a reading taken this year, and which do not (and when they were last read).
+      liveReadCurrent: live.filter(isCurrent).length,
+      liveReadStale: live.filter(r => !isCurrent(r)).map(r => ({ project: r.project, lastRead: r.last_read, certifiedPct: r.certified_pct })),
+      registerReadFrom: rows.reduce((m: string | null, r) => (r.last_read && (!m || r.last_read < m)) ? r.last_read : m, null),
       liveUnits: live.reduce((s, r) => s + (r.units ?? 0), 0),
       liveSoldUnits: live.reduce((s, r) => s + (r.sold_units ?? 0), 0),
       liveContractedAedM: Math.round(live.reduce((s, r) => s + (r.sold_units ?? 0) * (r.avg_ticket_aed ?? 0), 0) / 1e6),

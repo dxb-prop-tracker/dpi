@@ -21,6 +21,7 @@ export type Project = {
   avg_resale_change_pct: number | null; avg_hold_days: number | null; escrow_agent: string;
   first_sale: string | null; last_sale: string | null; project_start: string | null;
   is_live: boolean; ready_sales_since_bs: number; mortgages_since_bs: number;
+  reading_current: boolean;   // latest register reading taken this year (the API load is October-2025 content)
 };
 
 const num = (v: string | undefined) => { const n = Number(v); return v === '' || v == null || Number.isNaN(n) ? null : n; };
@@ -57,7 +58,7 @@ export function creditData(id: string) {
     return {
       project_number: r.project_number, project: r.project, area: r.area, status: r.status,
       certified_pct: num(r.certified_pct), registered_completion: r.registered_completion || null,
-      last_read: r.last_read || null, units, sold_units: sold, avg_ticket_aed: tick,
+      last_read: r.last_read || null, reading_current: r.reading_current === '1', units, sold_units: sold, avg_ticket_aed: tick,
       unsold: Math.max(0, units - sold), contracted_aed_m: (sold * tick) / 1e6,
       sold_pct: units > 0 ? (sold / units) * 100 : null,
       offplan_sales_all: num(r.offplan_sales_all) ?? 0, offplan_value_aed_m: (num(r.offplan_value_aed) ?? 0) / 1e6,

@@ -38,12 +38,23 @@ for iss in ('binghatti', 'sobha', 'arada'):
 if bad: print('\n'.join('    ' + b for b in bad)); sys.exit(1)
 PY
 
+step "reading currency: no handover claim rests on the October-2025 API load"
+if python3 tests/reading_currency.py >/tmp/preship-reading.log 2>&1; then ok; else bad "a stale register reading is being used as current"; cat /tmp/preship-reading.log | tail -8; fi
+
+# Excel leaves a '~$name.xlsx' owner file beside any workbook it has open. It is not a workbook and
+# must never be tested, published or — worse — opened by the recalc oracle (Excel then opens the
+# lock file itself and writes '~$~$name.xlsx'). Refuse to ship while one is present.
+step "no Excel lock files in the download folder"
+locks=$(ls public/downloads/credit/ 2>/dev/null | grep '^~\$' || true)
+if [ -z "$locks" ]; then ok; else bad "Excel has a published workbook open: $locks — close it in Excel, then rerun"; fi
+books=$(ls public/downloads/credit/*-credit-model.xlsx 2>/dev/null | grep -v '~\$' || true)
+
 step "every published workbook passes the Excel acceptance test"
-if python3 tests/xlsx_acceptance.py public/downloads/credit/*.xlsx >/tmp/preship-xlsx.log 2>&1; then ok; else bad "a workbook would not open in Excel"; grep -v PASS /tmp/preship-xlsx.log | head -12; fi
+if python3 tests/xlsx_acceptance.py $books >/tmp/preship-xlsx.log 2>&1; then ok; else bad "a workbook would not open in Excel"; grep -v PASS /tmp/preship-xlsx.log | head -12; fi
 
 step "escrow parity: workbook Simulator vs the one engine, every issuer"
 pp=0
-for f in public/downloads/credit/*-credit-model.xlsx; do
+for f in $books; do
   if ! python3 tests/escrow_parity.py "$f" >/tmp/preship-parity.log 2>&1; then pp=1; cat /tmp/preship-parity.log | tail -8; fi
 done
 [ $pp = 0 ] && ok || bad "the workbook and the engine disagree"

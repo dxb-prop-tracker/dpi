@@ -186,6 +186,12 @@ async function main() {
     const projKnown = db.prepare(`SELECT 1 FROM project WHERE project_number=?`);
     const projSeen = db.prepare(`INSERT OR IGNORE INTO vintage(kind,id,first_seen) VALUES('project',?,?)`);
     const anyProj = !!db.prepare(`SELECT 1 FROM project LIMIT 1`).get();
+    // A load_timestamp is when the file was written, not when its content was read from the register.
+    // The data.dubai dld_projects load stamped 2026-06-15 is October-2025 content: it holds project 4131
+    // (adopted 13 Oct 2025) but none of 4134/4149/4156/4160 (registered 27 Oct–12 Dec 2025), and its
+    // percentages match the live register on 1 of 195 projects inspected after October 2025 (Ali's
+    // audit, 13 Sep 2026). Date such a load by its content, so a genuine later reading always wins.
+    const CONTENT_DATE: Record<string, string> = { '2026-06-15': '2025-10-13' };
     const insObs = db.prepare(`INSERT OR IGNORE INTO project_observation(project_number,observed_at,status,percent_completed,completion_date,source) VALUES(?,?,?,?,?,'dld')`);
     let n = 0;
     const tx = db.transaction((batch: Record<string, string>[]) => {
@@ -204,7 +210,8 @@ async function main() {
         const completion = iso(g(r, f, 'completion_date')) || iso(g(r, f, 'planned_end_date'));
         // Date the observation by when the REGISTER says the data was extracted (load_timestamp),
         // not by when this script happens to run — re-reading an old file must not create a "newer" reading.
-        const obsDate = iso(g(r, f, 'load_timestamp'))?.slice(0, 10) || observedAt;
+        const stamp = iso(g(r, f, 'load_timestamp'))?.slice(0, 10) || observedAt;
+        const obsDate = CONTENT_DATE[stamp] ?? stamp;
         insObs.run(pn, obsDate, g(r, f, 'project_status') || null, num(g(r, f, 'percent_completed')), completion);
         const canc = iso(g(r, f, 'cancellation_date')); if (canc) db.prepare(`UPDATE project SET cancellation_date=? WHERE project_number=?`).run(canc, pn);
         n++;

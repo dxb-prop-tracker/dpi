@@ -46,7 +46,7 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
 <Base title={`${brand} — credit model`} crumbs={[{ label: 'Credit', href: '/credit/' }, { label: brand }]}>
   <div class="credit">
     <h1>{brand} — credit model</h1>
-    <p class="lede">{iss?.legalName ?? ''} The same model as the downloadable workbook, tab for tab, reading the same register data. Register read {fmtDate(data.meta.registerLastRead)}; transactions to {fmtDate(data.meta.transactionsLastRead)}. Everything here is from the public record — the land registry, the audited accounts, the offering circulars and the rating agencies. We do not publish a credit opinion of our own: the model is here so you can form yours.</p>
+    <p class="lede">{iss?.legalName ?? ''} The same model as the downloadable workbook, tab for tab, reading the same register data. Register read {fmtDate(data.meta.registerLastRead)} for {n(data.meta.liveReadCurrent ?? live.length)} of {n(live.length)} live projects{(data.meta.liveReadStale?.length ?? 0) > 0 && <>; the other {n(data.meta.liveReadStale.length)} rest on the data.dubai API load, whose content dates from October 2025 (see the Projects tab)</>}; transactions to {fmtDate(data.meta.transactionsLastRead)}. Everything here is from the public record — the land registry, the audited accounts, the offering circulars and the rating agencies. We do not publish a credit opinion of our own: the model is here so you can form yours.</p>
 
     {model && <div class="dlbar">
       <div><b>Download the model</b> — the whole thing in Excel, with the monthly grid and the scenario blocks this page summarises. Built {fmtDate(model.built)}, {(model.bytes / 1048576).toFixed(1)} MB.{model.derived && <span class="note"> Cut from our canonical model, so the calculations match the other issuers exactly. The bank-debt maturity split, the 12-month debt disclosure and the covenant thresholds are left blank rather than assumed — they are marked in the workbook.</span>}</div>
@@ -169,6 +169,13 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
           <tbody>{data.meta.completedSinceBalanceSheet.map((c: any) => <tr><td>{c.project}</td><td>{fmtDate(c.completed)}</td><td class="num">{n(c.units)}</td><td class="num">{m1(c.contractedAedM)}</td></tr>)}</tbody>
         </table></div>
       </>}
+      {data.meta.liveReadStale?.length > 0 && <>
+        <h3 class="sub">Live projects without a current register reading — not assessed</h3>
+        <p class="note">The latest reading we hold for these is the data.dubai API load, whose content dates from October 2025. A percentage that old cannot support a handover claim either way, so they are listed rather than judged.</p>
+        <div class="scroll"><table><thead><tr><th>Project</th><th>Last read</th><th class="num">Certified % then</th></tr></thead>
+          <tbody>{data.meta.liveReadStale.map((c: any) => <tr><td>{c.project}</td><td>{fmtDate(c.lastRead)}</td><td class="num">{m1(c.certifiedPct, 1)}</td></tr>)}</tbody>
+        </table></div>
+      </>}
       <p class="reads"><b>What this shows.</b> Whether handovers a company says have happened can be seen in the land registry. <b>How to read it.</b> "No trace" is not proof a handover did not occur — registration lags, and a tower handed over last week would not show yet. It does mean the claim rests on the company's word alone, which for a cash figure feeding a bond coverage calculation is a material difference.</p>
     </section>
 
@@ -176,11 +183,13 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
     <section class="pane" data-pane="projects">
       <p class="why">Every project the land registry attributes to this developer — {n(data.projects.length)} of them, {n(live.length)} still live. Sortable; click a column heading.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Project</th><th>Area</th><th>Status</th><th class="num">Certified %</th><th>Filed completion</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Contracted, AED m</th><th class="num">Sales 12m</th><th class="num">Value 12m, AED m</th><th class="num">Sales 90d</th><th class="num">Avg AED/sqm</th><th class="num">Resales at a loss</th><th>Escrow agent</th></tr></thead>
+        <thead><tr><th>Project</th><th>Area</th><th>Status</th><th class="num">Certified %</th><th>Read</th><th>Filed completion</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Contracted, AED m</th><th class="num">Sales 12m</th><th class="num">Value 12m, AED m</th><th class="num">Sales 90d</th><th class="num">Avg AED/sqm</th><th class="num">Resales at a loss</th><th>Escrow agent</th></tr></thead>
         <tbody>{data.projects.map(p => <tr>
           <td>{p.project}</td><td>{p.area}</td>
           <td>{p.is_live ? p.status.toLowerCase() : <span class="muted">{p.status.toLowerCase()}</span>}</td>
-          <td class="num">{m1(p.certified_pct, 1)}</td><td>{fmtDate(p.registered_completion)}</td>
+          <td class="num">{m1(p.certified_pct, 1)}</td>
+          <td>{p.reading_current ? fmtDate(p.last_read) : <span class="chip muted" title="Latest reading is the data.dubai API load; its content dates from October 2025">{fmtDate(p.last_read)}</span>}</td>
+          <td>{fmtDate(p.registered_completion)}</td>
           <td class="num">{n(p.units)}</td><td class="num">{n(p.sold_units)}</td><td class="num">{m1(p.contracted_aed_m)}</td>
           <td class="num">{n(p.sales_12m)}</td><td class="num">{m1(p.value_12m_aed_m)}</td><td class="num">{n(p.sales_90d)}</td>
           <td class="num">{m1(p.avg_psm_12m)}</td>

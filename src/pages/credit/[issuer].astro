@@ -110,6 +110,8 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
         <thead><tr><th>Project</th><th>Status</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Certified %</th><th>Filed completion</th><th class="num">Months to go</th><th class="num">Pace %/mo</th><th class="num">Effective value, AED m</th><th class="num">Released to date, AED m</th><th class="num">Further by 28 Feb 27</th><th class="num">Further by 31 Dec 27</th><th class="num">Further by 31 Dec 28</th></tr></thead>
         <tbody></tbody>
       </table></div>
+      <h3 class="sub">Reconciliation to the accounts — what the register implies is still in escrow, beside what the company reports</h3>
+      <div id="simrec"></div>
       <p class="reads"><b>What this shows.</b> How much of the money buyers have contracted to pay can actually reach the developer, and when. <b>How to read it.</b> Escrow does not hand over what has been collected: RERA releases collections in step with certified construction progress, less a retention held until a year after completion. So a tower that is 90% sold but 20% built has released very little. "Further by" is additional release after today, which is the number that matters against a bond maturity — a company can be sitting on a large contracted book and still be short of cash on the day.</p>
     </section>
 
@@ -250,6 +252,8 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
   <script is:inline set:html={`(function(){\n${ENGINE_SRC}\n` + `
       var SIM_ROWS = ${JSON.stringify(simRows)};
       var AS_OF = ${JSON.stringify(data.meta.registerLastRead)};
+      var ESCROW_REPORTED = ${JSON.stringify(iss?.periods?.length ? (iss.periods[iss.periods.length - 1].escrow ?? null) : null)};
+      var ESCROW_DATE = ${JSON.stringify(iss?.periods?.length ? (iss.periods[iss.periods.length - 1].label ?? '') : '')};
       var PCT = ['cancel', 'sell', 'price', 'book', 'hand', 'ret'];
       var KEYS = ['delay', 'pastdue', 'undated', 'cancel', 'sell', 'price', 'book', 'hand', 'ret', 'cap'];
       // Horizons as the workbook counts them: whole months after the as-of month (Simulator row 6).
@@ -259,12 +263,12 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
       var cur = Object.assign({}, SCENARIOS[0]);
 
       function calc() {
-        var out = [], tot = { eff: 0, todate: 0, h: HOR.map(function () { return 0; }), ret: 0 };
+        var out = [], tot = { eff: 0, todate: 0, h: HOR.map(function () { return 0; }), ret: 0, collected: 0 };
         SIM_ROWS.forEach(function (r) {
           var x = projectRow({ units: r.u || 0, sold: r.so || 0, ticket: r.t || 0, cert: r.c || 0,
             completion: r.d ? new Date(r.d + 'T00:00:00Z') : null, asOf: asOfD, s: cur, horizons: HOR });
           var hs = HOR.map(function (h) { return x.byHorizon[h.key]; });
-          tot.eff += x.effective; tot.todate += x.releasedToDate; tot.ret += x.contracted * cur.ret;
+          tot.eff += x.effective; tot.todate += x.releasedToDate; tot.ret += x.contracted * cur.ret; tot.collected += x.collectedToDate;
           hs.forEach(function (v, i) { tot.h[i] += v; });
           out.push({ r: r, eff: x.effective, cert: r.c || 0, m: x.months, pace: x.pace, todate: x.releasedToDate, hs: hs });
         });
@@ -291,6 +295,19 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
           tile('Effective contracted value', f0(res.tot.eff)) + tile('Released to date', f0(res.tot.todate)) +
           HOR.map(function (h, i) { return tile('Further release by ' + h.key, f0(res.tot.h[i])); }).join('') +
           tile('Retention held back', f0(res.tot.ret));
+        // Reconciliation to the accounts: what the register-based model implies is still in escrow
+        // (collected less released) beside what the company reports. The gap is shown, never tuned away.
+        var rec = document.getElementById('simrec');
+        if (rec) {
+          var held = res.tot.collected - res.tot.todate;
+          rec.innerHTML = ESCROW_REPORTED == null
+            ? '<p class="note">No reported escrow balance on file for this issuer.</p>'
+            : '<div class="scroll"><table><thead><tr><th>Escrow, AED m</th><th class="num">Model (register)</th><th class="num">Accounts (' + esc(ESCROW_DATE) + ')</th><th class="num">Gap</th></tr></thead><tbody>' +
+              '<tr><td>Collected to date</td><td class="num">' + f0(res.tot.collected) + '</td><td class="num">—</td><td class="num">—</td></tr>' +
+              '<tr><td>Released to date</td><td class="num">' + f0(res.tot.todate) + '</td><td class="num">—</td><td class="num">—</td></tr>' +
+              '<tr class="tot"><td><b>Still held in escrow</b></td><td class="num"><b>' + f0(held) + '</b></td><td class="num"><b>' + f0(ESCROW_REPORTED) + '</b></td><td class="num"><b>' + (held >= ESCROW_REPORTED ? '+' : '−') + f0(Math.abs(held - ESCROW_REPORTED)) + ' (' + Math.round((held / ESCROW_REPORTED - 1) * 100) + '%)</b></td></tr></tbody></table></div>' +
+              '<p class="reads"><b>What this shows.</b> A register-only model cannot see everything the escrow account holds: money on plots, joint ventures and finished towers the register does not attribute to this developer, real payment plans that differ from the preset, and — for every tower whose latest reading is the October-2025 API load — eleven months of progress. <b>How to read it.</b> A model above the account means releases are being under-counted (stale certified percentages do this); a model below it means collections the register cannot see. The gap is a measure of how far the register alone can take you, and it is shown here so that it is never mistaken for a forecast.</p>';
+        }
       }
       function tile(l, v) { return '<div class="kpi"><div class="v">' + v + '</div><div class="l">' + esc(l) + ', AED m</div></div>'; }
 

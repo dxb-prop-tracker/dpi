@@ -49,10 +49,19 @@ for csvfile in "$DATA"/*-register.csv; do
   own="$TPL/$issuer-template.xlsx"
   name=$(python3 -c "print('$issuer'.replace('-',' ').title().replace(' ',''))" 2>/dev/null || echo "$issuer")
   out="$OUT/${name}-credit-workbook-${STAMP}.xlsx"
-  derived=0
+  derived=0; resized=0
 
   if [ -f "$own" ]; then
-    src="$own"
+    # A hand-finished template is sized for the project count it was built with. When the register
+    # now holds a different number of live projects (13 Sep 2026: 16 new Binghatti launches from the
+    # live gateway), resize the template's own blocks first — the same cut the derived issuers get,
+    # applied to the issuer's own workbook, so its narrative and inputs are kept and only the
+    # Simulator, Projects and Handover blocks grow or shrink.
+    if python3 scripts/issuer_model.py "$own" "$csvfile" "$hand" "$WORK/$issuer-sized.xlsx" >"$WORK/$issuer-sized.log" 2>&1; then
+      src="$WORK/$issuer-sized.xlsx"; resized=1; grep -E "rows [0-9]+-[0-9]+" "$WORK/$issuer-sized.log" | sed 's/^/  /'
+    else
+      say "$issuer: could not resize its own template — using it as is"; src="$own"
+    fi
   else
     # No hand-finished template: cut one from the canonical model for this issuer.
     if [ ! -f "$conf" ]; then say "$issuer: no data/issuers/$issuer.json — cannot replace the model's issuer inputs"; rc_all=1; continue; fi
@@ -86,6 +95,18 @@ for csvfile in "$DATA"/*-register.csv; do
     fi
   else
     say "$issuer: no forecast published — run npm run forecast"
+  fi
+
+  # A workbook cut from the canonical model still carries the canonical issuer's numbers as the
+  # stored result of every formula cell. Excel recalculates on open and never shows them; a preview
+  # pane, a script or LibreOffice's converter does. Strip them so no reader can show Binghatti's
+  # figures on another issuer's sheet. (The canonical workbook keeps its own results — they are its.)
+  if [ "$derived" = 1 ] || [ "$resized" = 1 ]; then
+    if python3 scripts/strip_cached.py "$out" "$WORK/$issuer-stripped.xlsx" | tail -1; then
+      mv "$WORK/$issuer-stripped.xlsx" "$out"
+    else
+      say "$issuer: could not strip cached values — NOT published"; continue
+    fi
   fi
 
   cp "$out" "$OUT/${name}-credit-workbook-latest.xlsx"

@@ -52,6 +52,21 @@ books=$(ls public/downloads/credit/*-credit-model.xlsx 2>/dev/null | grep -v '~\
 step "every published workbook passes the Excel acceptance test"
 if python3 tests/xlsx_acceptance.py $books >/tmp/preship-xlsx.log 2>&1; then ok; else bad "a workbook would not open in Excel"; grep -v PASS /tmp/preship-xlsx.log | head -12; fi
 
+step "derived workbooks carry no stored formula results (no other issuer's figures inside)"
+python3 - <<'PY' && ok || bad "a derived workbook still holds cached formula values"
+import json, re, sys, zipfile
+m = json.load(open('public/downloads/credit/manifest.json'))
+pat = re.compile(r'<f(?:\s[^>]*)?(?:/>|>.*?</f>)\s*<v>', re.S)
+bad = []
+for k, v in m.items():
+    if not v.get('derived'): continue
+    z = zipfile.ZipFile('public/downloads/credit/' + v['file'])
+    n = sum(len(pat.findall(z.read(i).decode())) for i in z.namelist() if i.startswith('xl/worksheets/sheet'))
+    print(f"    {v['file']}: {n} cached formula values")
+    if n: bad.append(v['file'])
+sys.exit(1 if bad else 0)
+PY
+
 step "escrow parity: workbook Simulator vs the one engine, every issuer"
 pp=0
 for f in $books; do

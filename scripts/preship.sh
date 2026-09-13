@@ -55,9 +55,10 @@ if python3 tests/xlsx_acceptance.py $books >/tmp/preship-xlsx.log 2>&1; then ok;
 step "escrow parity: workbook Simulator vs the one engine, every issuer"
 pp=0
 for f in $books; do
-  if ! python3 tests/escrow_parity.py "$f" >/tmp/preship-parity.log 2>&1; then pp=1; cat /tmp/preship-parity.log | tail -8; fi
+  if ! python3 tests/escrow_parity.py "$f" >/tmp/preship-parity.log 2>&1; then
+    if grep -q "recalculation failed" /tmp/preship-parity.log; then pp=2; else pp=1; fi; tail -8 /tmp/preship-parity.log; fi
 done
-[ $pp = 0 ] && ok || bad "the workbook and the engine disagree"
+case $pp in 0) ok;; 2) bad "could not recalculate on this machine — install LibreOffice (the parity itself is unproven here, not wrong)";; *) bad "the workbook and the engine disagree";; esac
 
 step "the website inlines the engine, not a copy of it"
 if grep -q "ENGINE_SRC" "src/pages/credit/[issuer].astro" && ! grep -q "function rel(p, s)" "src/pages/credit/[issuer].astro"; then ok; else bad "the credit page carries its own escrow arithmetic"; fi

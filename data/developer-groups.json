@@ -1,0 +1,13 @@
+[
+  { "slug": "binghatti", "name": "Binghatti", "members": ["1051"], "issuer": "binghatti" },
+  { "slug": "sobha-realty", "name": "Sobha Realty", "members": ["966", "283", "87", "89"], "issuer": "sobha" },
+  { "slug": "arada", "name": "Arada", "members": ["1409"], "issuer": "arada" },
+  { "slug": "damac", "name": "DAMAC", "members": ["954", "260", "2035", "1866", "192", "907", "1095", "1119", "2117", "1131", "1414", "1475", "1528", "1529", "1583", "1636", "908", "922"] },
+  { "slug": "emaar", "name": "Emaar", "members": ["1211", "555", "1155", "950", "1237"] },
+  { "slug": "azizi", "name": "Azizi", "members": ["1002"] },
+  { "slug": "danube", "name": "Danube", "members": ["1009"] },
+  { "slug": "ellington", "name": "Ellington", "members": ["1117", "1535", "2371", "1507", "1513", "1647", "1986", "2420"] },
+  { "slug": "samana", "name": "Samana", "members": ["1229", "1598", "1688", "1344", "2072", "1933"] },
+  { "slug": "omniyat", "name": "Omniyat", "members": ["393", "1073", "883"] },
+  { "slug": "deyaar", "name": "Deyaar", "members": ["15", "1336"] }
+]

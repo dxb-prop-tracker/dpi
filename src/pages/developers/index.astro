@@ -1,0 +1,33 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q, q2, devGroup } from '../../lib/db';
+const raw = q.developerStats();
+const obs = q2.obsCount();
+// Roll SPVs up into corporate groups for the headline table; the full entity list follows.
+const groups = new Map<string, any>();
+for (const d of raw) {
+  const g = devGroup(d.name_en); const cur = groups.get(g) ?? { group: g, entities: 0, projects: 0, finished: 0, active: 0, overdue: 0, cancelled: 0, sales12m: 0, valueBn: 0, flagged: 0, slug: d.slug };
+  cur.entities++; cur.projects += d.projects; cur.finished += d.finished; cur.active += d.active; cur.overdue += d.overdue; cur.cancelled += d.cancelled; cur.sales12m += d.sales12m ?? 0; cur.valueBn += d.valueBn ?? 0; cur.flagged += d.flagged;
+  if (d.sales12m > (cur.topSales ?? -1)) { cur.topSales = d.sales12m; cur.slug = d.slug; }
+  groups.set(g, cur);
+}
+const rows = [...groups.values()].filter(g => g.sales12m > 0).sort((a, b) => b.sales12m - a.sales12m);
+import { groups as brandGroups, issuer } from '../../lib/developers';
+const issuers = brandGroups.filter(g => g.issuer).map(g => ({ g, iss: issuer(g.issuer), slug: raw.find(d => g.members.includes(d.developer_number))?.slug })).filter(x => x.iss && x.slug);
+---
+<Base title="Developer scorecard — delivery record from the DLD register" crumbs={[{label:'Developers'}]}>
+  <h1>Developer scorecard</h1>
+  <p class="lede">Every developer with recorded sales in the last 12 months, with SPVs rolled up into their corporate group. "Overdue" counts projects still under construction whose DLD completion date has passed. Slippage in months will appear once the register has been observed on more than one date (currently {obs}).</p>
+  {issuers.length > 0 && <section class="qs" style="margin-top:18px;padding-top:0;border-top:0">
+    <h2 style="margin-top:0"><span class="no">1</span>Bond issuers: a fixed-income view</h2>
+    <p class="why">Developers with listed sukuk, whose accounts are public. Each page carries the audited figures, credit ratios, the bonds and where they trade, the maturity wall, the agencies' actions, and what has to be repaid when.</p>
+    <div class="cards">
+      {issuers.map(({ g, iss, slug }) => <a class="pcard" href={`/developers/${slug}/#credit`}><div class="bd"><div class="m">{iss.header.ratings}</div><h3>{g.name}</h3><div class="m">{iss.stance.oneLine}</div></div></a>)}
+    </div>
+    <p class="reads"><b>What this shows.</b> The bond-issuing developers, with the agency ratings and a one-line summary of the record. <b>How to read it.</b> The ratings are the agencies', not ours. Click through for the accounts, the bonds, the maturity wall and the escrow model behind them, with every source named.</p>
+    <h2><span class="no">2</span>Scorecard</h2>
+  </section>}
+  <div class="scroll"><table><tr><th>Group</th><th class="num">Entities</th><th class="num">Projects</th><th class="num">Completed</th><th class="num">Active</th><th class="num">Overdue</th><th class="num">On delay watch</th><th class="num">Cancelled</th><th class="num">Sales 12m</th><th class="num">AED bn 12m</th></tr>
+  {rows.map(g => <tr><td><a href={`/developers/${g.slug}/`}>{g.group}</a></td><td class="num">{g.entities}</td><td class="num">{g.projects}</td><td class="num">{g.finished}</td><td class="num">{g.active}</td><td class={'num ' + (g.overdue ? 'down' : '')}>{g.overdue}</td><td class={'num ' + (g.flagged ? 'down' : '')}>{g.flagged}</td><td class="num">{g.cancelled}</td><td class="num">{g.sales12m.toLocaleString()}</td><td class="num">{g.valueBn.toFixed(2)}</td></tr>)}
+  </table></div>
+</Base>

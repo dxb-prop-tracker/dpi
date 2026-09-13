@@ -1,0 +1,42 @@
+---
+// Rule-correct UAE mortgage affordability. Rules live in one table with a review date so they can be maintained.
+interface Props { price?: number; offplan?: boolean }
+const { price = 2_000_000, offplan = false } = Astro.props;
+const uid = 'm' + Math.random().toString(36).slice(2, 7);
+---
+<div class="card" id={uid}>
+  <form class="calc" onsubmit="return false">
+    <div><label>Property price (AED)</label><input name="price" type="number" value={price} step="10000" /></div>
+    <div><label>Buyer</label><select name="buyer"><option value="expat">Resident expat</option><option value="national">UAE national</option><option value="nonres">Non-resident</option></select></div>
+    <div><label>Property</label><select name="seq"><option value="first">First property</option><option value="next">Subsequent property</option></select></div>
+    <div><label>Ready / off-plan</label><select name="stage"><option value="ready" selected={!offplan}>Ready</option><option value="offplan" selected={offplan}>Off-plan</option></select></div>
+    <div><label>Gross monthly income (AED)</label><input name="income" type="number" value="40000" step="1000" /></div>
+    <div><label>Existing monthly debt (AED)</label><input name="debt" type="number" value="0" step="500" /></div>
+    <div><label>Age</label><input name="age" type="number" value="40" /></div>
+    <div><label>Rate (%)</label><input name="rate" type="number" value="4.25" step="0.05" /></div>
+    <div><label>Tenure (years)</label><input name="years" type="number" value="25" /></div>
+  </form>
+  <div class="out" data-out>—</div>
+  <p class="note">LTV caps per UAE Central Bank mortgage regulations (rule table reviewed Aug 2026): nationals 85%/75% (first, below/above AED 5m), 65% subsequent; expats 80%/70%, 60% subsequent; non-residents 50–60% (bank policy); off-plan 50% for all. DBR ≤ 50%; tenure ≤ 25y; maturity by 65 (expat) / 70 (national). Transaction costs (~6–7%) cannot be financed. Indicative only.</p>
+</div>
+<script is:inline define:vars={{ uid }}>
+(() => {
+  const root = document.getElementById(uid), f = root.querySelector('form'), out = root.querySelector('[data-out]');
+  const RULES = { national: { first: [0.85, 0.75], next: [0.65, 0.65], maxAge: 70, mult: 8 }, expat: { first: [0.80, 0.70], next: [0.60, 0.60], maxAge: 65, mult: 7 }, nonres: { first: [0.60, 0.50], next: [0.50, 0.50], maxAge: 65, mult: 7 } };
+  const aed = n => 'AED ' + Math.round(n).toLocaleString('en-US');
+  function calc() {
+    const v = Object.fromEntries(new FormData(f)); const price = +v.price, inc = +v.income, debt = +v.debt, age = +v.age, r = +v.rate / 100 / 12;
+    const R = RULES[v.buyer]; let ltv = R[v.seq][price > 5e6 ? 1 : 0]; let bound = 'LTV cap';
+    if (v.stage === 'offplan') { ltv = Math.min(ltv, 0.5); bound = ltv === 0.5 ? 'off-plan 50% cap' : bound; }
+    const years = Math.min(+v.years, 25, Math.max(1, R.maxAge - age)); const n = years * 12;
+    const pmt = L => L * r / (1 - Math.pow(1 + r, -n));
+    let loan = price * ltv;
+    const dbrLoan = ((inc * 0.5 - debt) * (1 - Math.pow(1 + r, -n)) / r); if (dbrLoan < loan) { loan = Math.max(0, dbrLoan); bound = 'DBR 50%'; }
+    const multLoan = inc * 12 * R.mult; if (multLoan < loan) { loan = multLoan; bound = `${R.mult}× salary cap`; }
+    const costs = price * 0.04 + price * 0.02 * 1.05 + loan * 0.0025 + loan * 0.0075 + 7000;
+    const cash = price - loan + costs; const monthly = pmt(loan); const stress = loan * (r + 0.02 / 12) / (1 - Math.pow(1 + r + 0.02 / 12, -n));
+    out.innerHTML = `<b>Max loan ${aed(loan)}</b> (${(loan / price * 100).toFixed(0)}% LTV, binding constraint: <b>${bound}</b>)<br>Cash required <b>${aed(cash)}</b> = deposit ${aed(price - loan)} + costs ${aed(costs)} (DLD 4%, agent 2%+VAT, mortgage reg 0.25%, bank ~0.75%, valuation/trustee)<br>Monthly payment <b>${aed(monthly)}</b> over ${years} years · at +2% rate: ${aed(stress)}<br>DBR after purchase: ${((monthly + debt) / inc * 100).toFixed(0)}%`;
+  }
+  f.addEventListener('input', calc); calc();
+})();
+</script>

@@ -1,0 +1,255 @@
+---
+import Base from '../../../layouts/Base.astro';
+import MarketPack from '../../../components/MarketPack.astro';
+import { listReports, fmtDate, fmtDay, n, signed, monthName, statusWord } from '../../../lib/reports';
+import { groupedBars, hBars, stackedBar, columns } from '../../../lib/charts';
+export function getStaticPaths() { return listReports('weekly').map(e => ({ params: { date: e.date }, props: { r: e.report } })); }
+const { r } = Astro.props;
+const h = r.headline;
+const tracked = h.salesGained > 0;                 // vintages exist (API feed running) → "added to the register" is the primary view
+const S = tracked ? r.sales.gained : r.sales.dated;  // otherwise fall back to sales dated in the window
+const salesWord = tracked ? 'added to the register' : 'dated in the window';
+const RS = h.rentsGained > 0 ? r.rents.gained : r.rents.dated;
+const rentsWord = h.rentsGained > 0 ? 'registered in the window' : 'starting in the window';
+const aed = (bn: number | null | undefined) => bn == null ? '—' : bn >= 1 ? `AED ${bn.toFixed(2)} billion` : `AED ${Math.round(bn * 1000)} million`;
+const months = r.sales.byMonth;
+const restated = months.filter((m: any) => m.change < 0).reduce((s: number, m: any) => s + m.change, 0);
+const gainedMonths = months.filter((m: any) => m.change > 0);
+const chartAll = groupedBars(months.map((m: any) => ({ m: m.m, a: m.prev, b: m.now })), [`as of ${fmtDay(r.from)}`, `as of ${fmtDay(r.to)}`], { title: 'Recorded sales by month, both vintages' });
+const chartOff = groupedBars(months.map((m: any) => ({ m: m.m, a: m.prevOff, b: m.nowOff })), [`as of ${fmtDay(r.from)}`, `as of ${fmtDay(r.to)}`], { title: 'Off-plan sales by month, both vintages' });
+const histBars = columns(S.hist.map((b: any) => ({ label: b.bucket, n: b.n })));
+const areaBars = hBars(S.byArea.map((a: any) => ({ label: a.key, v: a.n, note: `${a.share}% · median AED ${n(a.medianPsm)}/sqm` })), {});
+const solid = r.register.progress.filter((p: any) => !p.suspect);
+const suspect = r.register.progress.filter((p: any) => p.suspect);
+const progBars = hBars(solid.slice(0, 18).map((p: any) => ({ label: `${p.name} (${p.pn})`, v: p.change, note: `${p.before}% → ${p.after}%` })), { unit: ' pts', signed: true });
+const compBars = hBars(r.register.completionChanges.slice(0, 15).map((c: any) => ({ label: `${c.name} (${c.pn})`, v: c.months, note: `${c.from} → ${c.to}` })), { unit: ' mo', signed: true });
+const statusBar = stackedBar(r.register.statusMix.map((s: any) => ({ label: statusWord(s.status), n: s.n })));
+const pctBar = stackedBar(r.register.pctMix.map((s: any) => ({ label: s.bucket, n: s.n })));
+const top = S.byArea[0];
+const topFive = S.byArea.slice(0, 5).reduce((s: number, a: any) => s + a.share, 0);
+const small = S.byRooms.filter((x: any) => /studio|^1 B/i.test(x.key)).reduce((s: number, x: any) => s + x.n, 0);
+const lastRun = r.integrity.runs[r.integrity.runs.length - 1];
+const stampAge = r.register.registerStamp ? Math.round((Date.parse(r.to) - Date.parse(r.register.registerStamp)) / 86400000) : null;
+const readingsInWindow = r.register.readings.filter((o: any) => o.observed_at > r.from && o.observed_at <= r.to);
+const sourcesMixed = r.register.progress.some((p: any) => p.beforeAt !== p.afterAt) && r.register.readings.length > 1 && new Set(r.register.readings.map((o: any) => o.source)).size > 1;
+const title = `The register moved — ${r.days} days to ${fmtDate(r.to)}`;
+const zeroPct = r.register.pctMix.find((b: any) => b.bucket === '0%')?.n ?? 0;
+const hundredPct = r.register.pctMix.find((b: any) => b.bucket === '100%')?.n ?? 0;
+const finishedN = r.register.statusMix.find((s: any) => s.status === 'FINISHED')?.n ?? 0;
+const statusSummary = (() => { const m = new Map<string, number>(); r.register.statusChanges.forEach((s: any) => { const k = `${statusWord(s.from)} → ${statusWord(s.to)}`; m.set(k, (m.get(k) ?? 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(' · '); })();
+const compMedian = r.register.completionChanges.length ? r.register.completionChanges.map((c: any) => c.months).sort((a: number, b: number) => a - b)[Math.floor(r.register.completionChanges.length / 2)] : null;
+let no = 0; const next = () => ++no;
+---
+<Base title={title} description={`What changed in the Dubai Land Department register between ${fmtDay(r.from)} and ${fmtDate(r.to)}: sales, prices, rents, project progress and status, with provenance.`} crumbs={[{ label: 'Reports', href: '/reports/' }, { label: 'Weekly' }, { label: fmtDate(r.to) }]}>
+  <style is:global>
+    .rep .kicker{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-weight:600}
+    .rep .hero h1{font-size:44px;margin-top:6px}.rep .hero h1 small{display:block;font-weight:400;color:var(--muted);font-size:30px}
+    .rep .rule{width:240px;height:3px;background:var(--red);margin:14px 0 18px}
+    .rep .callout{border-left:4px solid var(--gold);background:var(--wash);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0;font-size:14px;line-height:1.55}
+    .rep .callout.bad{border-left-color:var(--red)}.rep .callout.ok{border-left-color:var(--green)}
+    .rep .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:800px){.rep .two{grid-template-columns:1fr}}
+    .rep table td.bold{font-weight:650}
+    .rep .cannot li{margin:0 0 8px}
+    .rep .toolbar{display:flex;gap:10px;align-items:center;margin:8px 0 0;font-size:13px}
+    .rep .toolbar button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--axis);background:var(--surface);border-radius:8px;cursor:pointer;color:var(--ink)}
+    @media print{
+      header,footer,.crumbs,.toolbar,.search,.tblfilter{display:none!important}
+      body{background:#fff;font-size:12px}main{padding:0}.wrap{max-width:none;padding:0}
+      .rep .qs{break-inside:avoid;page-break-inside:avoid;border-top:0;margin-top:22px;padding-top:0}
+      .rep .kpis{break-inside:avoid}.rep .panel,.rep .scroll{break-inside:avoid;border:0;padding:0}
+      table{font-size:10px;width:100%}th,td{padding:4px 5px}a{color:inherit}.rep .scroll{overflow:visible}details{display:block}details summary{display:none}details:not([open])>*{display:block}
+      @page{size:A4;margin:12mm}
+      .rep .two{grid-template-columns:1fr 1fr}.rep .two .panel svg{max-width:380px;margin:0 auto}
+      .rep .hero h1{font-size:34px}.rep .hero{page-break-after:always}
+    }
+  </style>
+  <div class="rep">
+  <div class="hero">
+    <div class="kicker">Dubai Land Department · register report</div>
+    <h1>The register moved<small>{r.days} days in detail</small></h1>
+    <div class="rule"></div>
+    <p class="summary">Between <b>{fmtDay(r.from)}</b> and <b>{fmtDate(r.to)}</b> our copy of the Dubai Land Department data took in <b>{n(S.n)} recorded sales worth {aed(S.valueBn)}</b>{tracked && h.lateRegistrations > 0 && <>, of which {n(h.lateRegistrations)} were dated before the window and only reached the register now</>}{h.withdrawn > 0 && <>, and the register withdrew <b>{n(h.withdrawn)}</b> earlier entries</>}. {RS.n > 0 && <>Ejari registered <b>{n(RS.n)} rent contracts</b>{RS.newPct != null && <> ({RS.newPct}% new tenancies)</>}. </>}{(h.progressRevisions + h.statusChanges + h.completionChanges) > 0 && <>On the project register, <b>{n(h.progressRevisions)}</b> projects had their certified progress revised, <b>{n(h.statusChanges)}</b> changed status and <b>{n(h.completionChanges)}</b> moved their completion date. </>}This is what moved, item by item.</p>
+    <dl class="facts">
+      <div><dt>Window</dt><dd>{fmtDay(r.from)} → {fmtDate(r.to)}</dd></div>
+      <div><dt>Sales register</dt><dd>{n(r.integrity.totals.tx)} rows, to {fmtDay(r.integrity.txTo)}</dd></div>
+      <div><dt>Ejari</dt><dd>{n(r.integrity.totals.rents)} contracts, to {fmtDay(r.integrity.rentTo)}</dd></div>
+      <div><dt>Project register</dt><dd>{n(r.register.total)} projects · {n(r.integrity.totals.developers)} developers</dd></div>
+      <div><dt>Source</dt><dd>Digital Dubai open-data API (production), read daily; every download verified before it replaces anything</dd></div>
+    </dl>
+    <div class="toolbar"><button onclick="window.print()">Print / save as PDF</button><span class="note">Generated {fmtDate(r.generatedAt)}{r.prevEdition && <> · previous edition <a href={`/reports/weekly/${r.prevEdition}/`}>{fmtDate(r.prevEdition)}</a></>}</span></div>
+  </div>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>The window in one view</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Sales {tracked ? 'added' : 'dated'}</div><div class="v">{n(S.n)}</div><div class="d">{S.offplanPct != null ? `${S.offplanPct}% off-plan` : ''}</div></div>
+      <div class="kpi"><div class="k">Value</div><div class="v">{S.valueBn != null ? `${S.valueBn.toFixed(2)}` : '—'}</div><div class="d">AED billion</div></div>
+      <div class="kpi"><div class="k">Withdrawn</div><div class="v">{n(h.withdrawn)}</div><div class="d">entries the register no longer returns</div></div>
+      <div class="kpi"><div class="k">Rent contracts</div><div class="v">{n(RS.n)}</div><div class="d">{RS.newPct != null ? `${RS.newPct}% new, ${100 - RS.newPct}% renewals` : ''}</div></div>
+      <div class="kpi"><div class="k">Progress revisions</div><div class="v">{n(h.progressRevisions)}</div><div class="d">{solid.filter((p: any) => p.change > 0).length} up · {solid.filter((p: any) => p.change < 0).length} down{h.progressSuspect ? ` · ${h.progressSuspect} to check` : ''}</div></div>
+      <div class="kpi"><div class="k">Status changes</div><div class="v">{n(h.statusChanges)}</div><div class="d">{h.completionChanges ? `${n(h.completionChanges)} completion dates moved` : ''}</div></div>
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Sales by month, both vintages</h2>
+    <p class="why">Every recorded sale in {r.to.slice(0, 4)} by month of sale, counted as our register stood on {fmtDay(r.from)} and as it stands on {fmtDay(r.to)}. The comparison does two jobs at once: it shows the <b>gain</b> — late-registered sales filling in recent months — and the <b>restatement</b>, where the register has withdrawn cancelled or corrected entries.</p>
+    <div class="panel"><p class="ttl">All recorded sales</p><Fragment set:html={chartAll} /><p class="reads"><b>What this shows.</b> Every registered sale of the year by month of sale, counted twice: as our register stood at the start of the window (light bars) and at the end (dark bars). <b>How to read it.</b> Where the dark bar is taller, sales dated in that month reached the register during the window — recent months grow for weeks after they end. Where it is shorter, the register withdrew entries.</p></div>
+    <div class="panel"><p class="ttl">Off-plan only</p><p class="sub">The off-plan register is what most weekly market commentary counts; it is shown separately so the two are never confused.</p><Fragment set:html={chartOff} /><p class="reads"><b>What this shows.</b> The same two vintages for off-plan sales alone. <b>How to read it.</b> Off-plan registrations lag the sale by longer than ready sales, so this chart fills in more slowly; a headline "off-plan sales fell last month" is usually this lag, not the market.</p></div>
+    <p class="summary">{gainedMonths.length ? <>{gainedMonths.map((m: any, i: number) => <>{i > 0 && (i === gainedMonths.length - 1 ? ' and ' : ', ')}{monthName(m.m)} up {n(m.change)}</>)} since the previous vintage. </> : <>No month gained rows against the previous vintage. </>}{restated < 0 ? <>{n(-restated)} earlier rows were withdrawn across the year — the register corrects itself, and a series that is not re-pulled quietly overstates.</> : <>No earlier rows were withdrawn in this window.</>}</p>
+    <div class="scroll"><table>
+      <tr><th>Month</th><th class="num">All sales, {fmtDay(r.from)}</th><th class="num">All sales, {fmtDay(r.to)}</th><th class="num">Change</th><th class="num">Value now (AED bn)</th><th class="num">Off-plan, {fmtDay(r.from)}</th><th class="num">Off-plan, {fmtDay(r.to)}</th><th class="num">Change</th><th class="num">Off-plan value (AED bn)</th></tr>
+      {months.map((m: any) => <tr><td style="white-space:nowrap">{monthName(m.m)}</td><td class="num">{n(m.prev)}</td><td class="num">{n(m.now)}</td><td class={'num bold ' + (m.change > 0 ? 'up' : m.change < 0 ? 'down' : '')}>{m.change ? signed(m.change) : '—'}</td><td class="num">{m.valueBn.toFixed(2)}</td><td class="num">{n(m.prevOff)}</td><td class="num">{n(m.nowOff)}</td><td class={'num bold ' + (m.changeOff > 0 ? 'up' : m.changeOff < 0 ? 'down' : '')}>{m.changeOff ? signed(m.changeOff) : '—'}</td><td class="num">{m.valueOffBn.toFixed(2)}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> The two vintages month by month, for all sales and for off-plan, with the value the register now carries for each month. <b>How to read it.</b> The change columns are the register catching up (positive) or correcting (negative). Value is the sum of prices paid as the register stands today.</p>
+  </section>
+
+  {tracked && <section class="qs">
+    <h2><span class="no">{next()}</span>How long a sale takes to reach the register</h2>
+    <p class="why">The gap between a sale's date and the day it first appeared in the register. This is why any count of "last week's sales" is provisional.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Median lag</div><div class="v">{h.medianLagDays == null ? '—' : `${h.medianLagDays} d`}</div><div class="d">sale date → first appearance</div></div>
+      <div class="kpi"><div class="k">Late registrations</div><div class="v">{n(h.lateRegistrations)}</div><div class="d">added this window, dated before {fmtDay(r.from)}</div></div>
+      <div class="kpi"><div class="k">Dated in window</div><div class="v">{n(r.sales.dated.n)}</div><div class="d">sales with a date inside the window, so far</div></div>
+    </div>
+  </section>}
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>What the new sales cost</h2>
+    <p class="why">The {n(S.n)} sales {salesWord}, by price per square metre. Distribution, not average: the median is the number to quote.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Median price</div><div class="v">{S.medianPrice ? `AED ${(S.medianPrice / 1e6).toFixed(2)}m` : '—'}</div><div class="d">per sale</div></div>
+      <div class="kpi"><div class="k">Median AED/sqm</div><div class="v">{n(S.medianPsm)}</div><div class="d">{n(S.withArea)} sales carry a usable area</div></div>
+      <div class="kpi"><div class="k">Middle half</div><div class="v">{n(S.pcts.p25)}–{n(S.pcts.p75)}</div><div class="d">25th to 75th percentile</div></div>
+      <div class="kpi"><div class="k">Top tenth starts at</div><div class="v">{n(S.pcts.p90)}</div><div class="d">AED per sqm</div></div>
+    </div>
+    <div class="two">
+      <div class="panel"><p class="ttl">Sales by price per square metre</p><p class="sub">AED per sqm, thousands</p><Fragment set:html={histBars} /><p class="reads"><b>What this shows.</b> How the window's sales spread across price-per-square-metre bands. <b>How to read it.</b> The tallest bar is where the market clears; a long right tail is the luxury segment. Compare the shape, not the height, with earlier editions.</p></div>
+      <div class="scroll"><table><tr><th>Percentile</th><th class="num">AED per sqm</th></tr>
+        <tr><td>10th</td><td class="num">{n(S.pcts.p10)}</td></tr><tr><td>25th</td><td class="num">{n(S.pcts.p25)}</td></tr><tr><td>Median</td><td class="num bold">{n(S.pcts.p50)}</td></tr><tr><td>75th</td><td class="num">{n(S.pcts.p75)}</td></tr><tr><td>90th</td><td class="num">{n(S.pcts.p90)}</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Where the money went</h2>
+    {top && <p class="summary"><b>{top.key}</b> alone took {n(top.n)} of {n(S.n)} sales — {top.share}% — and the top five areas together take {Math.round(topFive)}%.</p>}
+    <div class="panel"><p class="ttl">Sales by area, top twelve</p><Fragment set:html={areaBars} /><p class="reads"><b>What this shows.</b> Where the window's sales were registered, by DLD area. <b>How to read it.</b> A single area dominating with a high off-plan share is one developer's launch programme, not a neighbourhood boom; the table beneath gives the off-plan share to check.</p></div>
+    <div class="scroll"><table><tr><th>Area</th><th class="num">Sales</th><th class="num">Share</th><th class="num">Value (AED bn)</th><th class="num">Median AED/sqm</th><th class="num">Off-plan</th></tr>
+      {S.byArea.map((a: any) => <tr><td><a href={`/dubai/${a.slug}/`}>{a.key}</a></td><td class="num">{n(a.n)}</td><td class="num">{a.share}%</td><td class="num">{a.valueBn.toFixed(3)}</td><td class="num">{n(a.medianPsm)}</td><td class="num">{a.offplanPct}%</td></tr>)}
+    </table></div>
+    <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">By project</h3>
+    <div class="scroll"><table><tr><th>Project</th><th class="num">Sales</th><th class="num">Value (AED m)</th><th class="num">Median AED/sqm</th></tr>
+      {S.byProject.map((p: any) => <tr><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td class="num">{n(p.n)}</td><td class="num">{n(p.valueM)}</td><td class="num">{n(p.medianPsm)}</td></tr>)}
+    </table></div>
+    <div class="two" style="margin-top:16px">
+      <div class="scroll"><table><tr><th>Property type</th><th class="num">Sales</th><th class="num">Median AED/sqm</th></tr>{S.byType.map((x: any) => <tr><td>{x.key}</td><td class="num">{n(x.n)}</td><td class="num">{n(x.medianPsm)}</td></tr>)}</table></div>
+      <div class="scroll"><table><tr><th>Bedrooms</th><th class="num">Sales</th><th class="num">Median AED/sqm</th></tr>{S.byRooms.map((x: any) => <tr><td>{x.key}</td><td class="num">{n(x.n)}</td><td class="num">{n(x.medianPsm)}</td></tr>)}</table></div>
+    </div>
+    {S.n > 0 && <div class="callout">Studios and one-bedroom units account for {n(small)} of the {n(S.n)} sales — {Math.round(100 * small / S.n)}%. {100 * small / S.n > 55 ? 'This is a small-unit market at the margin.' : 'Larger homes carry a bigger share of this window than usual.'}</div>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Rents</h2>
+    <p class="why">Ejari contracts {rentsWord}: new tenancies against renewals, and what they cost. The register carries every contract, not asking rents.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Contracts</div><div class="v">{n(RS.n)}</div><div class="d">{rentsWord}</div></div>
+      <div class="kpi"><div class="k">New tenancies</div><div class="v">{RS.newPct == null ? '—' : `${RS.newPct}%`}</div><div class="d">the rest are renewals</div></div>
+      <div class="kpi"><div class="k">Median annual rent</div><div class="v">{RS.medianAnnual ? `AED ${n(RS.medianAnnual)}` : '—'}</div><div class="d">all property types</div></div>
+      <div class="kpi"><div class="k">Median AED/sqm/yr</div><div class="v">{n(RS.medianPsm)}</div><div class="d">where the contract states an area</div></div>
+    </div>
+    <div class="scroll"><table><tr><th>Area</th><th class="num">Contracts</th><th class="num">Share</th><th class="num">New</th><th class="num">Median annual (AED)</th><th class="num">Median AED/sqm</th></tr>
+      {RS.byArea.map((a: any) => <tr><td><a href={`/rent/${a.slug}/`}>{a.key}</a></td><td class="num">{n(a.n)}</td><td class="num">{a.share}%</td><td class="num">{a.newPct}%</td><td class="num">{n(a.medianAnnual)}</td><td class="num">{n(a.medianPsm)}</td></tr>)}
+    </table></div>
+    <div class="two" style="margin-top:16px">
+      <div class="scroll"><table><tr><th>Bedrooms</th><th class="num">Contracts</th><th class="num">Median annual</th></tr>{RS.byRooms.map((x: any) => <tr><td>{x.key}</td><td class="num">{n(x.n)}</td><td class="num">{n(x.medianAnnual)}</td></tr>)}</table></div>
+      <div class="scroll"><table><tr><th>Property type</th><th class="num">Contracts</th><th class="num">Median annual</th></tr>{RS.byType.map((x: any) => <tr><td>{x.key}</td><td class="num">{n(x.n)}</td><td class="num">{n(x.medianAnnual)}</td></tr>)}</table></div>
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>The register itself</h2>
+    <p class="why">All {n(r.register.total)} projects DLD registers, on their latest reading. Ours is the full register, not the year's moving window.</p>
+    <div class="panel"><p class="ttl">By registered status</p><Fragment set:html={statusBar} /><p class="reads"><b>What this shows.</b> Every registered project by its current status flag. <b>How to read it.</b> "Active" is under construction with escrow open; "pending" and "not started" are registered plots waiting; "finished" has its completion certificate. The status flag changes later than the certified percentage — see the next bar.</p></div>
+    <div class="panel"><p class="ttl">By certified construction progress</p><p class="reads"><b>What this shows.</b> The same projects by their latest certified completion percentage. <b>How to read it.</b> Certification is an inspection record: a project sits at a value until the next inspection. Many finished projects still read below 100% for months.</p><Fragment set:html={pctBar} />{r.register.over100 > 0 && <p class="sub" style="margin-top:8px">Percentages capped at 100. {r.register.over100} rows carry a value above it — a source error, not progress.</p>}</div>
+    <p class="summary">Two things stand out and neither is a defect. <b>{n(zeroPct)} projects sit at 0%</b>: a plot can be registered for years before construction starts. And <b>{n(hundredPct)} read 100%</b> while {n(finishedN)} are marked finished — certification and the status flag move on different clocks.</p>
+    {r.register.entered.length > 0 && <>
+      <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Projects entering the register</h3>
+      <div class="scroll"><table><tr><th>No.</th><th>Project</th><th>Area</th><th>Developer</th><th>Status</th><th class="num">Certified</th><th class="num">Units</th></tr>
+        {r.register.entered.map((p: any) => <tr><td>{p.pn}</td><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td>{p.area}</td><td>{p.developer ?? '—'}</td><td>{statusWord(p.status)}</td><td class="num">{p.pct == null ? '—' : `${Math.min(100, p.pct).toFixed(0)}%`}</td><td class="num">{n(p.units)}</td></tr>)}
+      </table></div>
+    </>}
+    {r.register.devsAdded.length > 0 && <>
+      <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Developers added</h3>
+      <div class="scroll"><table><tr><th class="num">Developer number</th><th>Name</th><th>First seen</th></tr>{r.register.devsAdded.map((d: any) => <tr><td class="num">{d.developer_number}</td><td><a href={`/developers/${d.slug}/`}>{d.name_en}</a></td><td>{fmtDay(d.first_seen)}</td></tr>)}</table></div>
+      <div class="callout">Joined on developer number, never on name: the register carries brands, and one company can hold several numbers while one name can cover several companies.</div>
+    </>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Construction progress and status</h2>
+    <p class="why">{solid.length ? <>{n(solid.length)} projects had their certified completion revised — {solid.filter((p: any) => p.change > 0).length} upward, {solid.filter((p: any) => p.change < 0).length} downward. These are inspection-driven figures: a percentage that has not moved means no inspection has been recorded, not an idle site.</> : <>No project's certified completion changed between the readings in this window.</>}</p>
+    {sourcesMixed && <div class="callout">The "before" and "after" readings in this window come from two different DLD extracts (dates shown per row).{suspect.length > 0 && <> <b>{n(suspect.length)} projects jump straight to 100%</b> between the two — that is usually the extracts measuring completion differently, not weeks of construction, so they are listed separately below as source disagreements to check, not as progress.</>}</div>}
+    {progBars && <div class="panel"><p class="ttl">Change in certified completion, percentage points</p><Fragment set:html={progBars} /><p class="reads"><b>What this shows.</b> The projects whose certified completion moved most between the two readings, in percentage points. <b>How to read it.</b> Twenty points in a month is a tower going up fast; a downward move is a re-inspection correcting an earlier figure. Hover a bar for the before and after values.</p></div>}
+    {solid.length > 0 && <div class="scroll"><table><tr><th>Project</th><th>Area</th><th class="num">Before</th><th class="num">After</th><th class="num">Change</th><th>Readings</th></tr>
+      {solid.slice(0, 40).map((p: any) => <tr><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td>{p.area}</td><td class="num">{p.before}%</td><td class="num bold">{p.after}%</td><td class={'num bold ' + (p.change > 0 ? 'up' : 'down')}>{signed(p.change, 1)}</td><td class="note">{fmtDay(p.beforeAt)} → {fmtDay(p.afterAt)}</td></tr>)}
+    </table></div>}
+    {solid.length > 40 && <p class="note">Forty largest moves of {n(solid.length)} shown.</p>}
+    {suspect.length > 0 && <details style="margin-top:12px"><summary class="note" style="cursor:pointer">Source disagreements to check — {n(suspect.length)} projects read 100% complete in the extract but well below that in the register</summary>
+      <div class="scroll" style="margin-top:8px"><table><tr><th>Project</th><th>Area</th><th class="num">Register</th><th class="num">Extract</th><th>Readings</th></tr>
+        {suspect.map((p: any) => <tr><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td>{p.area}</td><td class="num">{p.before}%</td><td class="num">{p.after}%</td><td class="note">{fmtDay(p.beforeAt)} → {fmtDay(p.afterAt)}</td></tr>)}
+      </table></div></details>}
+    {r.register.statusChanges.length > 0 && <>
+      <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Registered status changes</h3>
+      <p class="why">{statusSummary}</p>
+      <div class="scroll"><table><tr><th>No.</th><th>Project</th><th>Area</th><th>From</th><th>To</th></tr>
+        {r.register.statusChanges.slice(0, 60).map((s: any) => <tr><td>{s.pn}</td><td>{s.url ? <a href={s.url}>{s.name}</a> : s.name}</td><td>{s.area}</td><td>{statusWord(s.from)}</td><td class="bold">{statusWord(s.to)}</td></tr>)}
+      </table></div>
+      {r.register.statusChanges.length > 60 && <p class="note">First sixty of {n(r.register.statusChanges.length)} shown.</p>}
+    </>}
+    {r.register.completionChanges.length > 0 && <>
+      <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Completion dates that moved</h3>
+      <p class="why">Positive is a later date — slippage. {r.register.completionChanges.filter((c: any) => c.months > 0).length} of {r.register.completionChanges.length} moved later; the median move is {signed(compMedian, 1)} months.</p>
+      <div class="panel"><Fragment set:html={compBars} /><p class="reads"><b>What this shows.</b> Projects whose registered completion date moved between readings, in months. <b>How to read it.</b> Positive bars are slippage — the date moved later. A negative bar is rare and means a date was brought forward or corrected.</p></div>
+      <div class="scroll"><table><tr><th>Project</th><th>Area</th><th>Was</th><th>Now</th><th class="num">Months</th></tr>
+        {r.register.completionChanges.slice(0, 40).map((c: any) => <tr><td>{c.url ? <a href={c.url}>{c.name}</a> : c.name}</td><td>{c.area}</td><td>{c.from}</td><td class="bold">{c.to}</td><td class={'num bold ' + (c.months > 0 ? 'down' : 'up')}>{signed(c.months, 1)}</td></tr>)}
+      </table></div>
+    </>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>How this was collected, and what checks it passed</h2>
+    <div class="scroll"><table><tr><th>Run</th><th class="num">Sales fetched</th><th class="num">New</th><th class="num">Withdrawn</th><th class="num">Days failed</th><th class="num">Rents fetched</th><th class="num">New</th><th>Notes</th></tr>
+      {r.integrity.runs.map((x: any) => <tr><td>{fmtDay(x.run_date)}</td><td class="num">{n(x.tx_fetched)}</td><td class="num">{n(x.tx_new)}</td><td class="num">{n(x.tx_withdrawn)}</td><td class={'num ' + (x.tx_days_failed ? 'down' : '')}>{n(x.tx_days_failed)}</td><td class="num">{n(x.rent_fetched)}</td><td class="num">{n(x.rent_new)}</td><td class="note">{x.notes ?? ''}</td></tr>)}
+      {r.integrity.runs.length === 0 && <tr><td colspan="8" class="note">No API runs were logged in this window; the sales and rent figures above rest on the bulk register load.</td></tr>}
+    </table></div>
+    <p class="summary" style="margin-top:14px">Every day's slice of the sales register is re-pulled for a rolling 45 days, so a late-registered sale is caught when it appears and a withdrawn one is marked when it disappears — never deleted. A page that arrives truncated is retried, never counted as empty. A register download replaces the file on disk only after it is read back and found complete.</p>
+    <div class={'callout ' + (stampAge != null && stampAge > 30 ? 'bad' : 'ok')}>
+      <b>Project register freshness.</b> {r.register.registerStamp ? <>The API's project register carries an extraction date of <b>{fmtDate(r.register.registerStamp)}</b>{stampAge != null && <> — {stampAge} days before this report</>}. </> : <>The API's project register carries no extraction date. </>}
+      {readingsInWindow.length ? <>Readings taken in this window: {readingsInWindow.map((o: any) => `${fmtDay(o.observed_at)} (${o.source === 'dld' ? 'DLD register' : 'register extract'}, ${n(o.n)} projects)`).join('; ')}.</> : <>No new register reading fell inside this window; the progress and status changes above are measured between the readings either side of it.</>}
+      {stampAge != null && stampAge > 30 && <> Until DLD reloads the feed, progress figures are as fresh as the last extract we loaded, not as fresh as the sales.</>}
+    </div>
+    {r.sales.withdrawn.length > 0 && <>
+      <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Entries the register withdrew</h3>
+      <div class="scroll"><table><tr><th>Transaction</th><th>Sale date</th><th>Area</th><th>Project</th><th class="num">AED</th><th>Withdrawn on</th></tr>
+        {r.sales.withdrawn.map((w: any) => <tr><td>{w.transaction_id.split('#')[0]}</td><td>{w.instance_date}</td><td>{w.area_name_en}</td><td>{w.project_name_en ?? '—'}</td><td class="num">{n(w.actual_worth)}</td><td>{fmtDay(w.withdrawn_on)}</td></tr>)}
+      </table></div>
+      {r.sales.withdrawnCount > r.sales.withdrawn.length && <p class="note">First {r.sales.withdrawn.length} of {n(r.sales.withdrawnCount)} shown.</p>}
+    </>}
+  </section>
+
+  {r.market && <MarketPack market={r.market} kind="weekly" start={no + 1} />}
+
+  <section class="qs">
+    <h2><span class="no">{r.market ? no + 13 : next()}</span>What this data cannot tell you</h2>
+    <ul class="cannot">
+      <li><b>{r.days} days is not a trend.</b> A month filling in is a reporting artefact, not demand. Read the monthly series for level and mix; do not annualise anything on this page.</li>
+      <li><b>Registered project value is construction cost.</b> It is the main-contract figure, in the order of a third of gross development value, and is not comparable with the sale values here.</li>
+      <li><b>Certified progress is an inspection record, not a site camera.</b> The median project reading on this register is {r.register.medianReadingAgeDays != null ? `${n(r.register.medianReadingAgeDays)} days` : 'months'} old. Judge a project against the spread — slipping is the norm — rather than against its own programme alone.</li>
+      <li><b>Recorded prices are what was paid, not what is asked.</b> Nothing here comes from a listing portal. Asking prices, where the site shows them, are kept on separate pages and never mixed with these figures.</li>
+      <li><b>A sale can still be withdrawn.</b> Entries are corrected at DLD for weeks after registration; this report marks withdrawals when they happen, which is why the previous vintage's months can shrink.</li>
+    </ul>
+    <p class="note" style="margin-top:14px">Dubai Land Department open data via the Digital Dubai production API, pulled daily and verified. Sales joined on transaction number, day, whole-dirham amount and registered size; developers joined on developer number; projects on project number across every reading. Prepared {fmtDate(r.generatedAt)}. Dubai Open Data Licence — attribution: Dubai Land Department / data.dubai.</p>
+  </section>
+  </div>
+</Base>

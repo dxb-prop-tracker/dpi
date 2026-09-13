@@ -1,0 +1,97 @@
+---
+import Base from '../../layouts/Base.astro';
+import { n, fmtDate } from '../../lib/reports';
+import { lineChart } from '../../lib/charts';
+import fs from 'node:fs';
+import path from 'node:path';
+const f = path.resolve(process.cwd(), 'public/data/index/rsi.json');
+const r = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+const pts = r?.market ?? [];
+const m1 = (v: number | null | undefined, dp = 1) => v == null ? '—' : v.toFixed(dp);
+---
+<Base title="The Dubai Repeat-Sales Index — price movement measured home by home" crumbs={[{ label: 'Price index' }]}>
+  <div class="rsi">
+    <h1>The Dubai Repeat-Sales Index</h1>
+    {r ? <>
+    <p class="lede">A price index built only from homes that have sold at least twice, so every observation compares a home with <em>itself</em>. Version {r.version}, {r.base.quarter} = 100, from {n(r.pairsUsed)} pairs. Free to use and to cite, with attribution.</p>
+
+    <div class="kpis">
+      <div class="kpi"><div class="v">{m1(r.headline.latest.index)}</div><div class="l">Latest — {r.headline.latest.quarter}</div></div>
+      <div class="kpi"><div class="v">{m1(r.headline.peak.index)}</div><div class="l">Peak — {r.headline.peak.quarter}</div></div>
+      <div class="kpi"><div class="v">{m1(r.headline.trough.index)}</div><div class="l">Trough — {r.headline.trough.quarter}</div></div>
+      <div class="kpi"><div class={'v ' + (r.headline.fromPeakPct < 0 ? 'down' : '')}>{m1(r.headline.fromPeakPct)}%</div><div class="l">From the peak</div></div>
+      <div class="kpi"><div class="v up">+{m1(r.headline.fromTroughPct)}%</div><div class="l">From the trough</div></div>
+    </div>
+
+    <div class="chart" set:html={lineChart(pts.map((p: any) => ({ m: p.quarter, psm: p.index, n: p.pairsSold })), { title: `Index, ${r.base.quarter} = 100`, unit: '' })} />
+
+    <p class="reads"><b>What this shows.</b> How much the price of the same home has changed, quarter by quarter, since {r.base.quarter}. <b>How to read it.</b> This is not the same as the average price paid. A median moves when the <em>mix</em> of what traded moves — a quarter in which mostly large or mostly cheap homes happened to sell will bend it, without any home changing in value. A repeat-sales pair has the home's own size, floor, view and finish on both sides of the comparison, where they cancel. When this index and a median disagree, the difference is composition.</p>
+
+    <section class="qs">
+      <h2><span class="no">1</span>Download it</h2>
+      <p class="why">The series, the area series, and a crosswalk giving every project a stable identifier so you can join to it and keep joining after a display name is cleaned up. Free with attribution: "Dubai Repeat-Sales Index v{r.version}, Dubai Property Intelligence".</p>
+      <div class="dl">
+        <a class="dlbtn" href="/data/index/rsi-market.csv" download>Market series (CSV)</a>
+        <a class="dlbtn" href="/data/index/rsi-areas.csv" download>Area series (CSV)</a>
+        <a class="dlbtn" href="/data/index/crosswalk.csv" download>Project crosswalk (CSV)</a>
+        <a class="dlbtn ghost" href="/data/index/rsi.json" download>Everything (JSON)</a>
+      </div>
+
+      <h2><span class="no">2</span>Method, frozen at version {r.version}</h2>
+      <p class="why">{r.method}</p>
+      <p><b>Universe.</b> {r.universe}</p>
+      <h3 class="sub">What is excluded, and why</h3>
+      <ul class="reasons">{r.exclusions.map((e: string) => <li>{e}</li>)}</ul>
+      <h3 class="sub">What it cannot tell you</h3>
+      <ul class="reasons">{r.limits.map((e: string) => <li>{e}</li>)}</ul>
+      <p class="note">A frozen version matters: if the method changes, the version changes, and the old series stays downloadable. Anyone who cited v{r.version} can still reproduce what they cited.</p>
+
+      <h2><span class="no">3</span>By neighbourhood</h2>
+      <p class="why">{r.areas.length} areas have enough repeat sales to carry their own series. Areas below the threshold are deliberately absent rather than shown thin.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Neighbourhood</th><th class="num">Pairs</th><th class="num">Latest</th><th class="num">Peak</th><th class="num">From peak</th><th class="num">From {r.base.quarter}</th></tr></thead>
+        <tbody>{r.areas.map((a: any) => {
+          const last = a.points[a.points.length - 1];
+          const peak = a.points.reduce((x: any, p: any) => (p.index > x.index ? p : x), a.points[0]);
+          return <tr>
+            <td>{a.area}</td><td class="num">{n(a.pairs)}</td>
+            <td class="num">{m1(last.index)}</td>
+            <td class="num">{m1(peak.index)} <span class="note">{peak.quarter}</span></td>
+            <td class={'num ' + (last.index < peak.index ? 'down' : '')}>{m1((last.index / peak.index - 1) * 100)}%</td>
+            <td class={'num ' + (last.index < 100 ? 'down' : 'up')}>{m1(last.index - 100)}%</td>
+          </tr>;
+        })}</tbody>
+      </table></div>
+      <p class="reads"><b>What this shows.</b> That Dubai is not one market. <b>How to read it.</b> "From peak" is measured against each area's own peak quarter, which is not always the market's — an area that topped out in 2014 and one that topped out this year are telling different stories, and a single city-wide number hides both.</p>
+
+      <h2><span class="no">4</span>Quarter by quarter</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Quarter</th><th class="num">Index</th><th class="num">Pairs sold</th><th class="num">Pairs touching</th><th>Evidence</th></tr></thead>
+        <tbody>{pts.map((p: any) => <tr>
+          <td>{p.quarter}</td><td class="num bold">{m1(p.index)}</td>
+          <td class="num">{n(p.pairsSold)}</td><td class="num">{n(p.pairsTouching)}</td>
+          <td>{p.thin ? <span class="chip warn">thin</span> : <span class="chip ok">sound</span>}</td>
+        </tr>)}</tbody>
+      </table></div>
+      <p class="reads"><b>What this shows.</b> Every number, with the evidence behind it. <b>How to read it.</b> "Pairs touching" counts every pair with a sale in that quarter, on either side — that is what actually determines the quarter, and it is the honest denominator. A quarter marked thin stands on too few pairs to be read on its own; the early years are thin because repeat sales need time to accumulate.</p>
+    </section>
+    </> : <p class="note">The index has not been built yet. Run <code>npm run rsi</code>.</p>}
+  </div>
+
+  <style is:global>
+    .rsi .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:16px 0}
+    .rsi .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+    .rsi .kpi .v{font-family:var(--serif);font-size:24px;font-weight:650}
+    .rsi .kpi .v.down{color:var(--red)}.rsi .kpi .v.up{color:var(--green)}
+    .rsi .kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px}
+    .rsi .chart{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin:0 0 8px}
+    .rsi .dl{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 8px}
+    .rsi .dlbtn{display:inline-block;background:var(--accent);color:#fff;font-weight:600;font-size:13.5px;padding:9px 16px;border-radius:8px}
+    .rsi .dlbtn:hover{text-decoration:none;filter:brightness(1.1)}
+    .rsi .dlbtn.ghost{background:var(--surface);color:var(--ink2);border:1px solid var(--border)}
+    .rsi .reasons{font-size:13.5px;line-height:1.65;padding-left:20px;max-width:840px}
+    .rsi .reasons li{margin-bottom:6px}
+    .rsi .sub{font-family:var(--serif);font-size:16px;font-weight:650;margin:18px 0 6px}
+    .rsi .up{color:var(--green)}.rsi .down{color:var(--red)}
+  </style>
+</Base>

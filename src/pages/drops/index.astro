@@ -1,0 +1,42 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q, q2, aed, pct, gapClass, gapText, scoreClass, dropUrl, areaLabel, roomsLabel, statusLabel } from '../../lib/db';
+const drops = q.allDrops();
+const rs = q2.resaleSummary();
+const losses = q2.losses(150);
+const byArea = q2.lossesByArea();
+const flags = q2.delayFlags(60);
+const short = (a: string) => areaLabel(a).split(' · ')[0];
+---
+<Base title="Price drops and distress signals across Dubai, from the land registry" crumbs={[{label:'Drops & distress'}]}>
+  <h1>Where sellers are taking losses, and where they will next</h1>
+  <p class="lede">Three signals, all computed from the DLD register rather than from advertised prices. Registry-confirmed losses are units resold below their own previous recorded price. Delay flags are projects where hundreds of buyers have paid in but construction has not kept up with the completion date. Validated asking-price drops appear once permit-validated listing data flows.</p>
+  <div class="tiles">
+    <div class="tile hero"><div class="k">Registry-confirmed losses (12m)</div><div class="v">{rs.losses?.toLocaleString()}</div><div class="s">of {rs.n?.toLocaleString()} same-spec resales · avg change {rs.avgPct > 0 ? '+' : ''}{rs.avgPct}% · latest {rs.latest}</div></div>
+    <div class="tile"><div class="k">Projects on delay watch</div><div class="v">{flags.length}</div><div class="s">sales in 12m, under 70% complete, completion due within 6 months or passed</div></div>
+    <div class="tile"><div class="k">Validated asking-price drops</div><div class="v">{drops.length}</div><div class="s">{drops.length ? '' : 'awaiting listing feed / agent submissions'}</div></div>
+  </div>
+
+  <h2>Delay watch: money in, building behind</h2>
+  <p class="note">Ranked by a risk score combining how far past (or close to) the DLD completion date the project is, how little is built, and how many buyers are exposed. This is the leading indicator: off-plan resale cuts tend to appear in these projects next.</p>
+  <div class="scroll"><table><tr><th>Score</th><th>Project</th><th>Area</th><th>Developer</th><th>Status</th><th class="num">% complete</th><th>Completion date</th><th class="num">Sales 12m</th><th class="num">AED m 12m</th></tr>
+  {flags.map(f => <tr><td><span class={scoreClass(f.risk_score)}>{f.risk_score}</span></td><td><a href={`/dubai/${f.area_slug}/${f.project_slug}/`}>{f.project}</a></td><td><a href={`/dubai/${f.area_slug}/`}>{short(f.area_name_en)}</a></td><td>{f.developer}</td><td>{statusLabel(f.status)}</td><td class="num">{f.percent_completed ?? 0}</td><td class={f.months_to_completion < 0 ? 'down' : ''}>{f.completion_date}{f.months_to_completion < 0 ? ' (passed)' : ''}</td><td class="num">{f.sales_12m}</td><td class="num">{(f.value_12m / 1e6).toFixed(0)}</td></tr>)}
+  </table></div>
+
+  <h2>Registry-confirmed losses: resold below the previous recorded price</h2>
+  <p class="note">Same project, building, unit type and exact registered area; consecutive sales at least 30 days apart; partial-value registrations excluded. "Ambiguity" counts other sales of an identical spec, so 0 means the pair is almost certainly the same unit. Most recent first.</p>
+  <div class="scroll"><table><tr><th>Sold</th><th>Project</th><th>Type</th><th class="num">sqm</th><th class="num">Previous price</th><th class="num">Bought</th><th class="num">Sold for</th><th class="num">Change</th><th class="num">Held (days)</th><th class="num"><span class="help" title="How many other sales of an identical spec exist in this project. 0 = almost certainly the exact same unit sold twice.">Ambiguity</span></th></tr>
+  {losses.map(r => <tr><td>{r.sold_on}</td><td><a href={`/dubai/${r.area_slug}/${r.project_slug}/`}>{r.project}</a><div class="note">{short(r.area_name_en)}{r.building_name_en && r.building_name_en !== r.project ? ' · ' + r.building_name_en : ''}</div></td><td>{roomsLabel(r.rooms_en)}{r.sold_reg === 'Off-Plan Properties' ? ' · off-plan' : ''}</td><td class="num">{r.procedure_area}</td><td class="num">{aed(r.bought_for)}</td><td class="num">{r.bought_on}</td><td class="num">{aed(r.sold_for)}</td><td class="num down">{pct(r.change_pct)}</td><td class="num">{r.hold_days}</td><td class="num">{r.ambiguity}</td></tr>)}
+  </table></div>
+
+  <h2>Loss rate by area, last 12 months</h2>
+  <div class="scroll"><table><tr><th>Area</th><th class="num">Same-spec resales</th><th class="num">Below previous price</th><th class="num">Loss rate</th><th class="num">Avg change</th></tr>
+  {byArea.map(a => <tr><td>{areaLabel(a.area)}</td><td class="num">{a.n}</td><td class="num">{a.losses}</td><td class={'num ' + (a.lossPct >= 40 ? 'down' : '')}>{a.lossPct}%</td><td class={'num ' + (a.avgPct < 0 ? 'down' : 'up')}>{a.avgPct > 0 ? '+' : ''}{a.avgPct}%</td></tr>)}
+  </table></div>
+
+  <h2>Validated asking-price drops</h2>
+  {drops.length === 0 ? <p class="note">None yet. Listings enter only through a licensed feed or permit-validated agent submissions; a cut is published after two or more consecutive scans before it, one after, and a cut of at least 2% and AED 25k.</p> :
+  <div class="scroll"><table><tr><th>Score</th><th>Project</th><th>Type</th><th class="num">First seen</th><th class="num">Now</th><th class="num">Cuts</th><th class="num">Total</th><th class="num">vs recorded</th></tr>
+  {drops.map(d => <tr><td><span class={scoreClass(d.distress_score)}>{d.distress_score}</span></td><td><a href={dropUrl(d.listing_id)}>{d.project ?? d.listing_id}</a></td><td>{d.rooms_en}</td><td class="num">{aed(d.first_price)}</td><td class="num">{aed(d.current_price)}</td><td class="num">{d.drop_count}</td><td class="num down">-{pct(d.cumulative_pct)}</td><td class={gapClass(d.gap_to_recorded_pct)}>{gapText(d.gap_to_recorded_pct)}</td></tr>)}
+  </table></div>}
+</Base>

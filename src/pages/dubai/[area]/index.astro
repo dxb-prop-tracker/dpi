@@ -1,0 +1,82 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { q, q2, q3, q4, q6, aed, yoy, signClass, statusLabel, AREA_ALIAS, projectImage } from '../../../lib/db';
+import { lineChart, barStrip, sparkline } from '../../../lib/charts';
+import { areaSummary, gainsSentence, short } from '../../../lib/prose';
+export function getStaticPaths() { return q.areas().map(a => ({ params: { area: a.slug } })); }
+const { area } = Astro.params; const s = q.areaStats(area!); const projects = q.projectsInArea(area!); const txp = q.txProjectsInArea(s.name); const rs = q2.areaResale(s.name); const alias = AREA_ALIAS[s.name];
+const hasRentPage = q3.rentAreas().some(r => r.slug === area);
+const nowMonth = new Date().toISOString().slice(0, 7);
+const series = q4.monthlyArea(s.name, 25).filter(r => r.m !== nowMonth);
+const chart = series.filter(r => r.np >= 10).length >= 6 ? lineChart(series.map(r => ({ m: r.m, psm: r.np >= 10 ? r.psm : null, n: r.np })), { title: `Average recorded AED/sqm in ${alias ?? s.name}` }) : '';
+const vol = chart ? barStrip(series.map(r => ({ m: r.m, n: r.n })), 'sales') : '';
+const yearly = q6.yearlyArea(s.name).filter(r => +r.y < +nowMonth.slice(0, 4) || r.n >= 100);
+const histChart = yearly.length >= 6 ? lineChart(yearly.map(r => ({ m: r.y, psm: r.psm, n: r.n })), { title: `Average recorded AED/sqm by year, ${alias ?? s.name}` }) : '';
+const histVol = histChart ? barStrip(yearly.map(r => ({ m: r.y, n: r.n })), 'sales') : '';
+const y = q6.areaYield(s.name);
+const gains = q6.heldGains(s.name);
+const summary = areaSummary(s, rs, y);
+const name = alias ?? s.name;
+// Most active projects as cards (top 6 with a register page), the rest in the table.
+const top = txp.filter(t => t.project_slug).slice(0, 6).map(t => { const p = projects.find(x => x.slug === t.project_slug); return { ...t, p, img: p ? projectImage(p.project_number) : null, spark: p ? q4.monthlyProject(p.project_number, 12).map(r => r.psm) : [] }; });
+const chipFor = (p: any) => !p?.status ? { c: 'muted', t: 'No reading' } : p.status === 'FINISHED' ? { c: 'ok', t: 'Completed' } : p.status === 'CANCELLED' ? { c: 'bad', t: 'Cancelled' } : p.completion && p.completion < nowMonth ? { c: 'bad', t: 'Past due' } : { c: 'warn', t: `${Math.round(p.pct ?? 0)}% built` };
+---
+<Base title={`${alias ? alias + ' (' + s.name + ')' : s.name} — recorded prices, rents, delays and losses`} crumbs={[{label:'Dubai',href:'/dubai/'},{label:name}]}>
+  <div class="hero">
+    <h1>{name}</h1>
+    <p class="lede">{alias && <>DLD register name: <b>{s.name}</b> · </>}{s.projects} registered project{s.projects === 1 ? '' : 's'}{hasRentPage && <> · <a href={`/rent/${area}/`}>Ejari rents in {name} →</a></>}</p>
+  </div>
+  {summary && <p class="summary">{summary}</p>}
+  <div class="kpis">
+    <div class="kpi"><div class="k">Recorded AED/sqm, 90d</div><div class="v">{s.n90 >= 30 ? s.psm90?.toLocaleString() : '—'}</div><div class={'d ' + (s.psm90 && s.psmLy && s.n90 >= 30 && s.nLy >= 30 ? signClass(s.psm90 - s.psmLy) : '')}>{s.n90 >= 30 && s.nLy >= 30 ? `${yoy(s.psm90, s.psmLy, s.n90, s.nLy).replace('-', '')} year on year` : `${s.n90} sales in 90 days`}</div></div>
+    <div class="kpi"><div class="k">Sales, 12 months</div><div class="v">{s.tx12m?.toLocaleString() ?? '—'}</div><div class={'d ' + (s.txPrev12m ? signClass(s.tx12m - s.txPrev12m) : '')}>{s.txPrev12m ? `${Math.abs((s.tx12m / s.txPrev12m - 1) * 100).toFixed(0)}% vs prior year` : ''}</div></div>
+    <div class="kpi"><div class="k">Value, 12 months</div><div class="v">{s.valueBn != null ? `AED ${s.valueBn}bn` : '—'}</div><div class="d">{s.offplanPct != null ? `${s.offplanPct}% off-plan` : ''}</div></div>
+    <div class="kpi"><div class="k">Resold at a loss</div><div class="v">{rs?.n ? `${rs.lossPct}%` : '—'}</div><div class="d">{rs?.n ? `of ${rs.n} same-spec resales` : 'no same-spec resales'}</div></div>
+    <div class="kpi"><div class="k">Gross yield</div><div class="v">{y?.rpsm && y?.spsm && y.rn >= 30 && y.sn >= 10 ? `${(100 * y.rpsm / y.spsm).toFixed(1)}%` : '—'}</div><div class="d">rent ÷ ready sale price, per sqm</div></div>
+  </div>
+  {chart && <div class="panel">
+    <p class="ttl">Price and volume, last 24 months</p>
+    <p class="sub">Median recorded price per sqm for apartments (line, months with 10+ sales) · monthly recorded sales, all property (bars). Hover any month.</p>
+    <Fragment set:html={chart} />
+    <Fragment set:html={vol} />
+    <p class="reads"><b>What this shows.</b> The median price paid per square metre of apartment in {name} each month (line) and the number of sales registered (bars). <b>How to read it.</b> Months with fewer than ten sales are left off the line because a median of six sales is noise. Compare with the same month a year earlier; launches make single months spike.</p>
+  </div>}
+
+  {top.length > 0 && <section class="qs">
+    <h2><span class="no">1</span>Where the money went</h2>
+    <p class="why">The most active projects in {name} by recorded sales in the last 12 months.</p>
+    <div class="cards">
+      {top.map(t => { const ch = chipFor(t.p); return <a class="pcard" href={`/dubai/${area}/${t.project_slug}/`}>
+        <div class="ph">{t.img && <img src={t.img} alt="" loading="lazy" />}<span class={'chip ' + ch.c}>{ch.t}</span></div>
+        <div class="bd"><h3>{t.project}</h3><div class="m">{t.n.toLocaleString()} sales · 12m{t.offplan ? ` · ${Math.round(100 * t.offplan / t.n)}% off-plan` : ''}</div>
+        <div class="p"><div><b>{t.psm ? `AED ${t.psm.toLocaleString()}` : '—'}</b><span> /sqm</span></div><Fragment set:html={sparkline(t.spark.filter((x: any) => x))} /></div></div>
+      </a>; })}
+    </div>
+    {txp.length > 6 && <details style="margin-top:8px"><summary class="note" style="cursor:pointer">All {txp.length} projects with recorded sales in the last 12 months</summary>
+    <div class="scroll" style="margin-top:8px"><table><tr><th>Project</th><th class="num">Sales</th><th class="num">Off-plan</th><th class="num">Avg AED/sqm</th><th class="num">Avg price</th><th>Last sale</th></tr>
+    {txp.map(t => <tr><td>{t.project_slug ? <a href={`/dubai/${area}/${t.project_slug}/`}>{t.project}</a> : t.project}</td><td class="num">{t.n}</td><td class="num">{t.offplan}</td><td class="num">{t.psm?.toLocaleString()}</td><td class="num">{aed(t.price)}</td><td>{t.last}</td></tr>)}
+    </table></div></details>}
+    <p class="reads"><b>What this shows.</b> Which projects in {name} took the sales, with their share of off-plan and the median price. <b>How to read it.</b> A card with a chip "x% built" and most sales off-plan is a launch; "Completed" with steady sales is a resale market. The sparkline is the project's own monthly price.</p>
+  </section>}
+
+  {histChart && <section class="qs">
+    <h2><span class="no">2</span>{name} prices, {yearly[0].y} to {yearly.at(-1).y}</h2>
+    <p class="why">The middle (median) price actually paid per square metre of apartment each year, with the number of sales behind it. Years with fewer than 30 recorded sales are left out.</p>
+    <div class="panel"><Fragment set:html={histChart} /><Fragment set:html={histVol} /><p class="reads"><b>What this shows.</b> {name}'s apartment price per square metre year by year, with the sales behind each year. <b>How to read it.</b> Set today's price against the area's own peak, not Dubai's; areas peaked in different years. Years with thin bars are less reliable readings.</p></div>
+  </section>}
+
+  <section class="qs">
+    <h2><span class="no">{histChart ? 3 : 2}</span>What buyers actually made here</h2>
+    <p class="why">Homes bought off-plan in {name} and later resold, with the gain or loss between the two recorded prices.</p>
+    <p class="summary">{gains ? gainsSentence(gains, name) : `Fewer than 20 off-plan homes in ${name} have been resold in the last two years, so there is not enough to say.`}</p>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{histChart ? 4 : 3}</span>Every project on the register</h2>
+    <p class="why">All {projects.length} projects the DLD registers in {s.name}, with their latest construction reading.</p>
+    <div class="scroll"><table><tr><th>Project</th><th>Developer</th><th>Status</th><th class="num">% complete</th><th>Completion</th><th class="num">Recorded AED/sqm</th></tr>
+    {projects.map(p => <tr><td><a href={`/dubai/${area}/${p.slug}/`}>{p.name_en}</a></td><td><a href={`/developers/${p.developer_slug}/`}>{p.developer}</a></td><td><span class={'chip ' + chipFor(p).c}>{statusLabel(p.status)}</span></td><td class="num">{p.pct ?? '—'}</td><td>{p.completion ?? '—'}</td><td class="num">{p.psm90?.toLocaleString() ?? '—'}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> Every project DLD registers in {s.name}: its developer, status flag, certified progress and registered completion date, with the last 90 days' recorded price where there were sales. <b>How to read it.</b> "Past due" means the registered date has passed while the project is still active. Click a project for its full delay history and comparables. Sort any column by clicking its heading.</p>
+  </section>
+</Base>

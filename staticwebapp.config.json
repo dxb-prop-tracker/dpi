@@ -1,0 +1,23 @@
+{
+  "routes": [
+    { "route": "/login/*", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/_astro/*", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/robots.txt", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/.auth/login/twitter", "statusCode": 404 },
+    { "route": "/.auth/login/facebook", "statusCode": 404 },
+    { "route": "/.auth/login/google", "statusCode": 404 },
+    { "route": "/*", "allowedRoles": ["friend", "admin"] }
+  ],
+  "responseOverrides": {
+    "401": { "rewrite": "/login/index.html" },
+    "403": { "rewrite": "/login/index.html" }
+  },
+  "navigationFallback": { "rewrite": "/404.html", "exclude": ["/_astro/*", "/*.{css,js,png,svg,ico,json}"] },
+  "globalHeaders": {
+    "Cache-Control": "private, max-age=600",
+    "X-Frame-Options": "DENY",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+    "Referrer-Policy": "same-origin"
+  },
+  "trailingSlash": "always"
+}

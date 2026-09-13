@@ -1,0 +1,159 @@
+---
+import Base from '../layouts/Base.astro';
+import { q, q2, q3, q4, q6, areasWithStats, aed, pct, gapText, scoreClass, signClass, roomsLabel } from '../lib/db';
+import { lineChart, barStrip, sparkline } from '../lib/charts';
+import { marketSummary, gainsSentence, short, num } from '../lib/prose';
+import { latestReport, fmtDay, fmtDate, n as fmtN } from '../lib/reports';
+const rep = latestReport('weekly');
+const repS = rep ? (rep.report.headline.salesGained > 0 ? rep.report.sales.gained : rep.report.sales.dated) : null;
+const repM = latestReport('monthly');
+const h = q.headline();
+const rents = q3.rentSummary();
+const rentSpread = rents.rentNew && rents.rentRenew ? rents.rentNew / rents.rentRenew - 1 : null;
+const rs = q2.resaleSummary();
+const flags = q2.delayFlags(5);
+const losses = q2.losses(5);
+const gains = q6.heldGains();
+
+// Market chart: drop the current (incomplete) month so the last point isn't an artificial dip.
+const nowMonth = new Date().toISOString().slice(0, 7);
+const series = q4.monthlyMarket(25).filter(r => r.m !== nowMonth);
+const chart = lineChart(series.map(r => ({ m: r.m, psm: r.psm, n: r.np })), { title: 'Average recorded price per sqm, apartments' });
+const vol = barStrip(series.map(r => ({ m: r.m, n: r.n })), 'sales');
+const lastM = series.at(-1);
+const yearAgo = series.find(r => r.m === `${+lastM.m.slice(0, 4) - 1}${lastM.m.slice(4)}`);
+const marketYoY = lastM?.psm && yearAgo?.psm ? lastM.psm / yearAgo.psm - 1 : null;
+const vol12 = series.slice(-12).reduce((s, r) => s + r.n, 0), volPrev = series.slice(-24, -12).reduce((s, r) => s + r.n, 0);
+const volYoY = vol12 && volPrev ? vol12 / volPrev - 1 : null;
+const summary = marketSummary(series, rs, rents, gains);
+
+// Long history: yearly average recorded AED/sqm since the register's first full years.
+const yearly = q6.yearlyMarket().filter(r => +r.y < +nowMonth.slice(0, 4) || r.n >= 2000);
+const histChart = lineChart(yearly.map(r => ({ m: r.y, psm: r.psm, n: r.n })), { title: 'Average recorded price per sqm by year' });
+const histVol = barStrip(yearly.map(r => ({ m: r.y, n: r.n })), 'sales');
+const peak = yearly.reduce((a, b) => (b.psm > a.psm ? b : a), yearly[0]);
+const after = yearly.filter(r => +r.y > 2008);
+const trough = after.length ? after.reduce((a, b) => (b.psm < a.psm ? b : a), after[0]) : null;
+const latestY = yearly.at(-1);
+
+// Movers: biggest YoY moves with sample-size guards.
+const sparks = q4.sparkAreas();
+const movers = areasWithStats().filter(a => a.n90 >= 30 && a.nLy >= 30 && a.psm90 && a.psmLy).map(a => ({ ...a, yv: a.psm90 / a.psmLy - 1 }));
+const up = [...movers].sort((x, y) => y.yv - x.yv).slice(0, 4);
+const dn = [...movers].sort((x, y) => x.yv - y.yv).slice(0, 4);
+const busiest = [...areasWithStats()].filter(a => a.tx12m).sort((a, b) => b.tx12m - a.tx12m).slice(0, 6);
+const areaCount = areasWithStats().filter(a => a.tx12m).length;
+---
+<Base title="Dubai property, priced by the land registry — recorded prices, real rents, project delays">
+  <div class="hero">
+    <h1>Dubai property, priced by the land registry — not the brochure.</h1>
+    <p class="lede">What buyers actually paid, what tenants actually pay, and whether the building is actually being built — from the government's own records, {(h.tx / 1e6).toFixed(1)} million sales and {(rents.n / 1e3).toFixed(0)}k rent contracts deep. No advertised prices, no estimates.</p>
+    <div class="search big" data-search>
+      <input type="search" placeholder="Try “Dubai Marina”, “Binghatti Apex”, “Emaar”…" autocomplete="off" aria-label="Search areas, projects and developers" />
+      <div class="sr" hidden></div>
+    </div>
+  </div>
+
+  <div class="doors">
+    <a class="door" href="/dubai/"><h3>I'm buying</h3><p>What homes actually sold for, area by area and project by project, with the construction record and a mortgage calculator that applies the real Central Bank rules.</p><span class="go">Browse areas →</span></a>
+    <a class="door" href="/rent/"><h3>I'm renting</h3><p>Real contract rents from Ejari, not asking rents — and exactly how much your landlord can raise the rent at renewal.</p><span class="go">See real rents →</span></a>
+    <a class="door" href="/drops/"><h3>I'm investing</h3><p>Who resold at a loss, which projects are behind schedule with buyers' money in, and where asking prices are being cut.</p><span class="go">See the distress signals →</span></a>
+  </div>
+
+  {(rep || repM) && <div class="doors" style="margin-top:0">
+    {repM && <a class="door" href={`/reports/monthly/${repM.key}/`} style="border-left:4px solid var(--red)">
+      <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-weight:600">Monthly report · {repM.report.label}</div>
+      <h3 style="font-family:var(--serif);font-size:19px;margin:6px 0 4px">{fmtN(repM.report.market.headline.cur.n)} sales, AED {repM.report.market.headline.cur.valueBn?.toFixed(1)} bn, median AED {fmtN(repM.report.market.headline.cur.medPsmUnit)}/sqm</h3>
+      <p>The month against the month before and a year earlier; the same month across seven years; year to date; areas, developers, rents, yields, resales and the supply pipeline.</p><span class="go">Read the monthly →</span>
+    </a>}
+    {rep && <a class="door" href={`/reports/weekly/${rep.date}/`} style="border-left:4px solid var(--red)">
+      <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-weight:600">Weekly · the register moved · {fmtDate(rep.report.to)}</div>
+      <h3 style="font-family:var(--serif);font-size:19px;margin:6px 0 4px">{fmtN(repS.n)} sales worth AED {repS.valueBn?.toFixed(2)} bn, {fmtN(rep.report.headline.rentsGained || rep.report.headline.rentsDated)} rent contracts, {fmtN(rep.report.headline.progressRevisions)} progress revisions</h3>
+      <p>{fmtDay(rep.report.from)} → {fmtDate(rep.report.to)}: what was added, what was withdrawn, what it cost, where it was, and every project whose status or completion date moved.</p><span class="go">Read the weekly →</span>
+    </a>}
+  </div>}
+
+  <section class="qs">
+    <h2><span class="no">1</span>The market right now</h2>
+    <p class="summary">{summary}</p>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Median AED/sqm, apartments</div><div class="v">{lastM?.psm?.toLocaleString()}</div><div class={'d ' + (marketYoY != null ? signClass(marketYoY) : '')}>{marketYoY != null ? `${Math.abs(marketYoY * 100).toFixed(1)}% year on year` : ''}</div></div>
+      <div class="kpi"><div class="k">Sales, last 12 months</div><div class="v">{num(vol12)}</div><div class={'d ' + (volYoY != null ? signClass(volYoY) : '')}>{volYoY != null ? `${Math.abs(volYoY * 100).toFixed(1)}% vs prior year` : ''}</div></div>
+      <div class="kpi"><div class="k">Resold at a loss</div><div class="v">{rs.n ? Math.round(100 * rs.losses / rs.n) : 0}%</div><div class="d">of {rs.n?.toLocaleString()} same-spec resales</div></div>
+      <div class="kpi"><div class="k">New rents vs renewals</div><div class="v">{gapText(rentSpread)}</div><div class="d">what moving costs vs staying</div></div>
+      <div class="kpi"><div class="k">Projects on delay watch</div><div class="v">{q2.delayFlags(500).length}</div><div class="d">buyers paid in, building behind</div></div>
+    </div>
+    <div class="panel">
+      <p class="ttl">Two years, month by month</p>
+      <p class="sub">Median recorded price per sqm for apartments (line) · monthly recorded sales, all property (bars). Hover any month.</p>
+      <Fragment set:html={chart} />
+      <Fragment set:html={vol} />
+      <p class="reads"><b>What this shows.</b> The median price paid per square metre of apartment each month (line) and the number of sales the register recorded (bars), for the last two years. <b>How to read it.</b> Follow the line for price, the bars for activity. The line is a median, so a tower of luxury registrations does not drag it; a month with few sales is a thin reading. The current month is left out because it is still filling in.</p>
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">2</span>Where prices are moving</h2>
+    <p class="why">Apartment prices per square metre, last 90 days against the same 90 days a year earlier. Only areas with at least 30 sales in both windows — small samples don't make this list.</p>
+    <div class="grid2">
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">Rising fastest</h3>
+        <div class="scroll"><table><tr><th>Area</th><th>12m</th><th class="num">AED/sqm</th><th class="num">YoY</th></tr>
+        {up.map(a => <tr><td><a href={`/dubai/${a.slug}/`}>{short(a.name)}</a></td><td><Fragment set:html={sparkline(sparks.get(a.name) ?? [])} /></td><td class="num">{a.psm90.toLocaleString()}</td><td class="num up">+{(a.yv * 100).toFixed(1)}%</td></tr>)}
+        </table></div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">Falling fastest</h3>
+        <div class="scroll"><table><tr><th>Area</th><th>12m</th><th class="num">AED/sqm</th><th class="num">YoY</th></tr>
+        {dn.map(a => <tr><td><a href={`/dubai/${a.slug}/`}>{short(a.name)}</a></td><td><Fragment set:html={sparkline(sparks.get(a.name) ?? [])} /></td><td class="num">{a.psm90.toLocaleString()}</td><td class="num down">{(a.yv * 100).toFixed(1)}%</td></tr>)}
+        </table></div>
+      </div>
+    </div>
+    <p class="reads"><b>What these show.</b> The areas whose apartment price per square metre moved most against the same 90 days a year earlier, with a twelve-month sparkline of the monthly median. <b>How to read them.</b> A large move on a small sparkline is usually a change in what sold (a new launch, a luxury tower) rather than repricing of the same homes — open the area page and check the off-plan share before acting on it.</p>
+    <h3 style="margin:22px 0 8px;font-size:15px">Busiest areas</h3>
+    <div class="cards">
+      {busiest.map(a => <a class="pcard" href={`/dubai/${a.slug}/`}><div class="bd"><h3>{short(a.name)}</h3><div class="m">{a.tx12m.toLocaleString()} sales · 12m{a.offplanPct != null ? ` · ${a.offplanPct}% off-plan` : ''}</div>
+        <div class="p"><div><b>{a.n90 >= 30 && a.psm90 ? `AED ${a.psm90.toLocaleString()}` : '—'}</b><span> /sqm</span></div><Fragment set:html={sparkline(sparks.get(a.name) ?? [])} /></div></div></a>)}
+    </div>
+    <p class="note"><a href="/dubai/">All {areaCount} areas →</a></p>
+  </section>
+
+  {yearly.length >= 6 && <section class="qs">
+    <h2><span class="no">3</span>Dubai home prices, {yearly[0].y} to {latestY.y}</h2>
+    <p class="why">The middle (median) price actually paid for one square metre of apartment, every year the Land Department's record covers with a meaningful sample. The faint bars are how many sales each year's price rests on.</p>
+    <p class="summary">Prices peaked at AED {peak.psm.toLocaleString()} per square metre in {peak.y}{trough && trough.y !== peak.y ? `; the low point after 2008 was AED ${trough.psm.toLocaleString()} in ${trough.y}` : ''}. In {latestY.y}{+latestY.y === +nowMonth.slice(0, 4) ? ' so far' : ''} the median stands at AED {latestY.psm.toLocaleString()} — {latestY.psm >= peak.psm ? 'a new high' : `${Math.abs((latestY.psm / peak.psm - 1) * 100).toFixed(0)}% below the ${peak.y} peak`}.</p>
+    <div class="panel">
+      <Fragment set:html={histChart} />
+      <Fragment set:html={histVol} />
+      <p class="reads"><b>What this shows.</b> The apartment price line year by year since the register began, with each year's sales count beneath it. <b>How to read it.</b> The distance from the 2014 peak is the number long-term investors use to judge how far the cycle has run; the bars show whether a price move happened on deep or thin trading.</p>
+    </div>
+  </section>}
+
+  <section class="qs">
+    <h2><span class="no">4</span>What buyers actually made</h2>
+    <p class="why">Not a forecast: homes bought off-plan and later resold, with the gain or loss between the two officially recorded prices. Every area page carries its own version.</p>
+    {gains ? <p class="summary">{gainsSentence(gains, 'Dubai')}</p> : <p class="summary">Not enough off-plan resales in the last two years to state this with confidence yet.</p>}
+    <div class="grid2">
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">Latest registry-confirmed losses</h3>
+        <div class="scroll"><table><tr><th>Sold</th><th>Project</th><th class="num">Bought → sold</th><th class="num">Change</th></tr>
+        {losses.map(r => <tr><td>{r.sold_on}</td><td><a href={`/dubai/${r.area_slug}/${r.project_slug}/`}>{r.project}</a><div class="note">{short(r.area_name_en)} · {roomsLabel(r.rooms_en)}</div></td><td class="num">{aed(r.bought_for)} → {aed(r.sold_for)}</td><td class="num down">{pct(r.change_pct)}</td></tr>)}
+        </table></div>
+        <p class="reads"><b>What this shows.</b> The most recent resales where the register recorded a lower price than the earlier purchase. <b>How to read it.</b> Each row is one home sold twice; the change is between the two registered prices, before costs. Click through for the full pair.</p>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">Delay watch, top of the list</h3>
+        <div class="scroll"><table><tr><th><span class="help" title="0–100: how far past the completion date, how little is built, and how many buyers are exposed">Risk</span></th><th>Project</th><th class="num">Sales 12m</th><th>Completion</th></tr>
+        {flags.map(f => <tr><td><span class={scoreClass(f.risk_score)}>{f.risk_score}</span></td><td><a href={`/dubai/${f.area_slug}/${f.project_slug}/`}>{f.project}</a><div class="note">{short(f.area_name_en)} · {f.percent_completed ?? 0}% built</div></td><td class="num">{f.sales_12m}</td><td class={f.months_to_completion < 0 ? 'down' : ''}>{f.completion_date}</td></tr>)}
+        </table></div>
+        <p class="reads"><b>What this shows.</b> Projects whose registered completion date has passed or is close while certified progress lags, ranked by how much buyer money is exposed. <b>How to read it.</b> The risk score weighs months past due, how little is built and how many sales the project has taken in the last year; a high score with many sales is a project to check before paying an instalment.</p>
+      </div>
+    </div>
+    <p class="note">A "registry-confirmed loss" means the same unit specification in the same building sold twice in the DLD register, the second time for less. <a href="/drops/">The full list, and how we verify it →</a></p>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">5</span>Two kinds of price — never mixed</h2>
+    <p class="summary">Anywhere you see a price on this site it is labelled. <b>Recorded</b> prices are what buyers actually paid, from the Land Department's register of completed sales. <b>Asking</b> prices are what a seller hopes to get, and appear only from partnered feeds or permit-validated listings. We never blend the two, and we never show an estimate dressed up as a price.</p>
+  </section>
+</Base>

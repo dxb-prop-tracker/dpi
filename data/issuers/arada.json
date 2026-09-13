@@ -1,0 +1,90 @@
+{
+  "id": "arada",
+  "brand": "Arada",
+  "legalName": "Arada Developments LLC (Sharjah) — obligor under the Arada Sukuk and Arada Sukuk 2 programmes",
+  "dldDevelopers": ["1409"],
+  "asOf": "2026-09-06",
+  "latestFinancials": "H1 2026 reviewed interim (30 June 2026, KPMG, 5 August 2026); FY2025 audited (27 April 2026)",
+  "stance": { "label": "Watch", "tone": "warn", "oneLine": "The most leveraged of the three: five times EBITDA gross, interest covered barely once in the first half, AED 5.5 bn lent to affiliates outside the rated group — offset by Sharjah government support, a AED 15.5 bn backlog and bonds that still trade near par." },
+  "header": {
+    "ratings": "Moody's B1, outlook negative (17 Apr 2026) · Fitch B+ / sukuk BB-, Rating Watch Negative (26 Mar 2026) · S&P not rated",
+    "bondPrices": "Jun-2027 8.125%: 99.45 / 101.4 (YTM ≈6.2%) · Jun-2029 8.0%: 99.05 / 101.2 (≈7.5%) · Aug-2030 7.15%: 97.2 / 99.25 (≈7.4%) — Emirates Islamic indicative, 3 Sep 2026",
+    "grossDebt": "AED 7.7 bn (30 Jun 2026) — sukuk AED 5.2 bn, bank AED 2.5 bn; plus AED 1.9 bn owed to the Government of Sharjah for land and AED 2.8 bn to related parties",
+    "unrestrictedCash": "AED 2.3 bn outside escrow · AED 1.26 bn in escrow",
+    "nextMaturity": "USD 411.7m (AED 1.51 bn) sukuk, 8 June 2027 — a consent to add a call right, for an 'intended refinancing', goes to an adjourned vote on 17 September 2026"
+  },
+  "periods": [
+    { "label": "FY2024", "revenue": 3945, "grossProfit": null, "ebitda": null, "netProfit": 517, "totalAssets": null, "cash": null, "escrow": null, "debt": null, "equity": null, "contractLiabilities": null, "backlog": null, "sales": 6000, "cfo": null, "dividends": 155 },
+    { "label": "FY2025", "revenue": 6072, "grossProfit": 2526, "ebitda": 1673, "netProfit": 1078, "totalAssets": 21311, "cash": 3868, "escrow": 1245, "debt": 6883, "equity": 3787, "contractLiabilities": 3002, "backlog": 15437, "sales": 17300, "cfo": 301, "financeCost": 698, "dividends": 250, "note": "EBITDA computed from the audited accounts (excludes AED 78m investment-property gain); the company's 'Group' figures (revenue AED 6.7 bn, EBITDA 1.6 bn) use a wider perimeter" },
+    { "label": "H1 2026", "revenue": 2234, "grossProfit": 832, "ebitda": 503, "netProfit": 318, "totalAssets": 23038, "cash": 3671, "escrow": 1257, "debt": 7678, "equity": 4120, "contractLiabilities": 3029, "backlog": 15485, "sales": null, "cfo": 7, "financeCost": 419, "dividends": 0, "note": "Revenue −11% and adjusted EBITDA −25% in the audited perimeter; the 2026 sales target was cut from AED 15 bn to 7 bn in May" }
+  ],
+  "ratios": [
+    { "label": "Gross debt / EBITDA (LTM)", "fy2025": "4.1x", "h1_2026": "5.1x", "comment": "Fitch downgrade sensitivity 4.5x; annualising H1 alone gives 7.6x" },
+    { "label": "Net debt / EBITDA — all cash and deposits", "fy2025": "1.8x", "h1_2026": "2.7x", "comment": "Sukuk covenant ≤4.0x (loosened from 3.0x in July 2025)" },
+    { "label": "EBITDA / gross finance cost", "fy2025": "2.4x", "h1_2026": "1.2x", "comment": "Covenant is on net finance charges (≥1.5x), helped by AED 205m of interest income from affiliates" },
+    { "label": "Cash and deposits / bank debt due within 12 months", "fy2025": "26x", "h1_2026": "4.0x", "comment": "Current bank debt jumped from AED 150m to 920m" },
+    { "label": "Debt / equity", "fy2025": "1.82x", "h1_2026": "1.86x", "comment": "2.8x including government land payable, shareholder and affiliate financing" },
+    { "label": "Moody's debt / book capitalisation", "fy2025": "66%", "h1_2026": "—", "comment": "Guidance for the rating is below 60%" },
+    { "label": "Cash from operations", "fy2025": "AED 0.3 bn", "h1_2026": "AED 7m", "comment": "Sharjah payment plans collect 60–70% at handover — cash arrives late" }
+  ],
+  "bonds": [
+    { "name": "8.125% sukuk due 8 Jun 2027", "isin": "XS2471859251", "sizeUsdM": 412, "issued": "Jun 2022 + two taps; USD 88m bought back Aug 2025 at 102.75", "listing": "Nasdaq Dubai · LSE ISM", "price": "99.45 / 101.4", "ytm": "≈6.2%", "note": "Consent solicitation (Aug 2026) to insert an optional call at par; first meeting inquorate, adjourned to 17 Sep 2026" },
+    { "name": "8.0% sukuk due 24 Jun 2029", "isin": "XS2841181972", "sizeUsdM": 550, "issued": "Jun 2024 + Oct 2024 tap", "listing": "Nasdaq Dubai · LSE ISM", "price": "99.05 / 101.2", "ytm": "≈7.5%", "note": "Covenants loosened by consent in July 2025 after the electronic vote first fell short of 50%" },
+    { "name": "7.15% sukuk due 5 Aug 2030", "isin": "XS3119606955", "sizeUsdM": 450, "issued": "Aug 2025", "listing": "Nasdaq Dubai · LSE ISM", "price": "97.2 / 99.25", "ytm": "≈7.4%", "note": "4x covered; spread widened to about 730bp in March 2026" },
+    { "name": "Islamic bank facilities", "isin": "", "sizeUsdM": 673, "issued": "various", "listing": "—", "price": "", "ytm": "EIBOR + 2.35–3.5%", "note": "AED 2.47 bn; secured on properties, Aljada receivables and collection accounts; shareholder guarantees on one facility" },
+    { "name": "Government of Sharjah land payable", "isin": "", "sizeUsdM": 521, "issued": "2017 land purchase", "listing": "—", "price": "", "ytm": "deferred", "note": "AED 1.9 bn; AED 1.2 bn bullet 2029 plus a 16-year sales-linked tranche — the basis of Fitch's one-notch government uplift" }
+  ],
+  "maturityWall": [
+    { "year": "to mid-2027", "usdM": 251, "sukukUsdM": 0 },
+    { "year": "2027", "usdM": 412, "sukukUsdM": 412 },
+    { "year": "2028", "usdM": 423, "sukukUsdM": 0 },
+    { "year": "2029", "usdM": 877, "sukukUsdM": 550 },
+    { "year": "2030", "usdM": 450, "sukukUsdM": 450 }
+  ],
+  "ratingsHistory": [
+    { "date": "2026-04-17", "agency": "Moody's", "action": "B1 affirmed, outlook to negative", "why": "Debt/book capitalisation 66% vs <60% guidance; liquidity 'reliant on the timely execution of property handovers'; regional conflict" },
+    { "date": "2026-03-26", "agency": "Fitch", "action": "B+ / BB- placed on Rating Watch Negative", "why": "Conflict could raise unsold inventory, cancellations and working-capital needs" },
+    { "date": "2025-10-22", "agency": "Fitch", "action": "B+ stable affirmed", "why": "Sharjah's largest master-plan developer; one-notch uplift for government support; governance negative" },
+    { "date": "2025-07", "agency": "—", "action": "Sukuk covenants loosened by consent", "why": "Net debt/equity 1.5x → 2.0x; net debt/EBITDA 3.0x → 4.0x" }
+  ],
+  "strengths": [
+    "Sharjah's dominant master-plan developer (about half of the emirate's off-plan volume) in a more affordable, end-user market — Moody's: 'unique market position in Sharjah'",
+    "Government of Sharjah is a 40% shareholder and land creditor on deferred terms; Fitch rates the sukuk a notch above the standalone for that support",
+    "IFRS backlog AED 15.5 bn, of which AED 6.8 bn falls due within a year; gross margins near 40%",
+    "AED 3.7 bn of cash and deposits, AED 2.3 bn of it outside escrow, against USD 412m of sukuk due in June 2027",
+    "Market access intact: the 2030 sukuk was four times covered at 7.15% and all three issues still trade near par"
+  ],
+  "concerns": [
+    "Leverage is out of line with the ratings: five times LTM EBITDA gross; Moody's says it is 'elevated for the rating level' and Fitch's downgrade line is 4.5x",
+    "Interest cover thinned to 1.2x gross in H1 2026 (finance cost AED 419m against adjusted EBITDA AED 503m); covenant compliance leans on AED 205m of interest income charged to affiliates",
+    "AED 5.5 bn is owed to the rated company by affiliates — chiefly a AED 3.5 bn 7% loan to Arada Group LLC due December 2027 — more than its entire equity, and the shareholders ceased to jointly control that group in February 2026; the international expansion (London AED 2.5 bn, Australia, a USD 7 bn Syria venture, a hospital) sits there",
+    "Cash from operations was AED 7m in the half; Sharjah plans collect 60–70% at handover, so liquidity is a handover schedule — and management blames the conflict for material delays",
+    "Covenants were loosened in 2025 when the first vote fell short; a second consent in 2026 seeks a call right to refinance the 2027 paper",
+    "Moody's: 'relatively limited operating track record … alongside past delays'; a board with one independent director"
+  ],
+  "view": {
+    "capacity": "Arada can pay the June 2027 sukuk from cash on hand today — AED 2.3 billion outside escrow against AED 1.5 billion due — and the company is already lining up a refinancing by adding a call right. What it cannot do comfortably is carry its debt on current earnings: the first half produced AED 503 million of EBITDA against AED 419 million of finance cost and AED 7 million of operating cash flow. The credit works only if the AED 6.8 billion of backlog due within a year hands over on schedule, because Sharjah buyers pay most of the price at the door.",
+    "refinancing": "The bonds price none of this stress: 6–7.5% yields are the tightest of the three issuers, reflecting the Sharjah government's 40% stake and land support more than the accounts. That support is the reason a refinancing of the 2027 paper should get done, most likely by a new sukuk once the call right passes on 17 September, or by bank facilities secured on Aljada receivables if the market stays shut. The cost will be higher than 8.125% if either agency moves first: Moody's outlook is negative and Fitch is on watch.",
+    "restructuring": "A restructuring is not the base case while the shareholders keep funding and the government keeps deferring, but this is the issuer where the question is fair to ask. The mechanism would be leakage: cash raised by the rated company flowing to affiliates outside the rating perimeter (AED 803 million net in the first half) while its own interest cover sits near one. Watch the affiliate receivable, the September consent result, whether H2 2026 handovers recover from the delays management has admitted, and any Moody's move to B2.",
+    "forBuyers": "Escrow protects deposits in Sharjah as in Dubai, and Arada has delivered more than 10,000 homes since 2017. The realistic risk to an off-plan buyer is a later key date: the company has acknowledged supply-chain delays in 2026 and has an incentive to prioritise projects nearest handover. Buyers should check the delay history of their specific phase rather than the group's headline."
+  },
+  "sources": [
+    { "title": "Arada Developments LLC interim FS 30 June 2026", "url": "https://aradawebcontent.blob.core.windows.net/arada-com/2026/08/Arada-Developments-LLC-FS-30-Jun-2026.pdf", "date": "2026-08-05" },
+    { "title": "Arada Developments LLC audited FS FY2025", "url": "https://aradawebcontent.blob.core.windows.net/arada-com/2026/05/Arada-Developments-LLC-FS-31-Dec-2025.pdf", "date": "2026-04-27" },
+    { "title": "Moody's Credit Opinion, Arada Developments (April 2026)", "url": "https://aradawebcontent.blob.core.windows.net/arada-com/2026/05/2026_-Moodys-Credit-Opinion.pdf", "date": "2026-04-17" },
+    { "title": "Fitch affirms Arada at B+ stable (October 2025)", "url": "https://aradawebcontent.blob.core.windows.net/arada-com/2025/10/Fitch-Affirms-Aradas-IDR-at-B_Stable-Senior-Unsecured-Rating-at-BB-_RR3-1.pdf", "date": "2025-10-22" },
+    { "title": "Arada Notice of Corporate Restructuring", "url": "https://aradawebcontent.blob.core.windows.net/arada-com/2026/05/Arada-Developments-LLC-Notice-of-Corporate-Restructuring.pdf", "date": "2026-05-17" },
+    { "title": "Arada Sukuk Ltd — launch of consent solicitation (call right)", "url": "https://www.investegate.co.uk/announcement/rns/arada-sukuk-limited--ri99/launch-of-consent-soliciation/9718420", "date": "2026-08-12" },
+    { "title": "Arada Sukuk Ltd — results of meeting (inquorate; adjourned to 17 Sep 2026)", "url": "https://www.investegate.co.uk/announcement/rns/arada-sukuk-limited--ri99/results-of-meeting-of-certificateholders/9756786", "date": "2026-09-04" },
+    { "title": "Arada reports revenue rise but blames war for building delays (AGBI)", "url": "https://www.agbi.com/construction/2026/08/arada-reports-revenue-rise-but-blames-war-for-building-delays/", "date": "2026-08-06" },
+    { "title": "Arada lines up new UAE projects despite Iran war uncertainty (The National)", "url": "https://www.thenationalnews.com/business/property/2026/05/12/arada-lines-up-new-uae-projects-despite-iran-war-uncertainty/", "date": "2026-05-12" },
+    { "title": "Emirates Islamic sukuk indicative prices", "url": "https://www.emiratesislamic.ae/-/media/ei/pdfs/general/sukuk-indicative-quotes/sukuk_indicative_quotes.pdf", "date": "2026-09-03" }
+  ],
+  "gaps": [
+    "Fitch's March 2026 watch read through a secondary summary; no resolution found by 6 September 2026",
+    "2026 sales to date and H1 deliveries not disclosed; only the revised AED 7 bn target",
+    "Bank maturities disclosed only as within / beyond twelve months; Government of Sharjah bullet approximated",
+    "Result of the adjourned 17 September certificateholder meeting pending",
+    "Only four of Arada's projects are in the DLD register — most of its portfolio is in Sharjah, outside this site's data"
+  ]
+}

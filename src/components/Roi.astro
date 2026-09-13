@@ -1,0 +1,39 @@
+---
+interface Props { price?: number; rent?: number; rentLabel?: string; serviceCharge?: number | null }
+const { price = 2_000_000, rent = 120_000, rentLabel = 'Annual rent (AED)', serviceCharge = null } = Astro.props;
+const uid = 'r' + Math.random().toString(36).slice(2, 7);
+---
+<div class="card" id={uid}>
+  <form class="calc" onsubmit="return false">
+    <div><label>Purchase price (AED)</label><input name="price" type="number" value={price} step="10000" /></div>
+    <div><label>{rentLabel}</label><input name="rent" type="number" value={rent} step="1000" /></div>
+    <div><label>{serviceCharge ? 'Service charge (Mollak budget ÷ units)' : 'Service charge (assumed 1.2% of price)'}</label><input name="sc" type="number" value={serviceCharge ?? Math.round(price * 0.012)} step="500" /></div>
+    <div><label>Vacancy (weeks/yr)</label><input name="vac" type="number" value="4" /></div>
+    <div><label>Management fee (%)</label><input name="mgmt" type="number" value="5" /></div>
+    <div><label>LTV (%)</label><input name="ltv" type="number" value="70" /></div>
+    <div><label>Mortgage rate (%)</label><input name="rate" type="number" value="4.25" step="0.05" /></div>
+    <div><label>Hold (years)</label><input name="hold" type="number" value="5" /></div>
+    <div><label>Exit price vs recorded comp (%)</label><input name="exit" type="number" value="0" step="5" /></div>
+  </form>
+  <div class="out" data-out>—</div>
+  <p class="note">Net yield deducts service charge, vacancy, management fee and a 1% maintenance allowance. IRR is levered, after entry costs (DLD 4%, agent 2%+VAT, mortgage registration 0.25%, bank ~0.75%, valuation/trustee) and a 2.1% exit agent fee, on a 25-year amortising loan. Rent held flat (conservative). Indicative only.</p>
+</div>
+<script is:inline define:vars={{ uid }}>
+(() => {
+  const root = document.getElementById(uid), f = root.querySelector('form'), out = root.querySelector('[data-out]');
+  const aed = n => 'AED ' + Math.round(n).toLocaleString('en-US'); const p = n => (n * 100).toFixed(1) + '%';
+  function irr(cf) { let lo = -0.99, hi = 1; for (let i = 0; i < 100; i++) { const m = (lo + hi) / 2; const npv = cf.reduce((s, c, t) => s + c / Math.pow(1 + m, t), 0); if (npv > 0) lo = m; else hi = m; } return (lo + hi) / 2; }
+  function calc() {
+    const v = Object.fromEntries(new FormData(f)); const price = +v.price, rent = +v.rent, sc = +v.sc, ltv = +v.ltv / 100, r = +v.rate / 100, hold = +v.hold;
+    const gross = rent / price; const netRent = rent * (1 - +v.vac / 52) * (1 - +v.mgmt / 100) - sc - price * 0.01; const net = netRent / price;
+    const loan = price * ltv; const costs = price * 0.04 + price * 0.02 * 1.05 + loan * 0.0025 + loan * 0.0075 + 7000; const cash = price - loan + costs;
+    const n = 300, rm = r / 12; const pmt = loan ? loan * rm / (1 - Math.pow(1 + rm, -n)) : 0;
+    let bal = loan; const cf = [-cash];
+    for (let y = 1; y <= hold; y++) { let interest = 0; for (let m = 0; m < 12; m++) { const i = bal * rm; interest += i; bal -= pmt - i; } cf.push(netRent - pmt * 12); }
+    const exit = price * (1 + +v.exit / 100); cf[hold] += exit * (1 - 0.021) - bal;
+    const coc = (netRent - pmt * 12) / cash;
+    out.innerHTML = `Gross yield <b>${p(gross)}</b> · Net yield <b>${p(net)}</b> · Cash-on-cash (levered) <b>${p(coc)}</b><br>Cash in ${aed(cash)} (deposit ${aed(price - loan)} + costs ${aed(costs)}) · Debt service ${aed(pmt * 12)}/yr · Net rent ${aed(netRent)}/yr<br>Levered IRR over ${hold}y at exit ${+v.exit >= 0 ? '+' : ''}${v.exit}% vs recorded: <b>${p(irr(cf))}</b>`;
+  }
+  f.addEventListener('input', calc); calc();
+})();
+</script>

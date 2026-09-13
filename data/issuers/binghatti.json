@@ -1,0 +1,89 @@
+{
+  "id": "binghatti",
+  "brand": "Binghatti",
+  "legalName": "Binghatti Holding Limited (DIFC) — operating subsidiary Binghatti Developers FZE",
+  "dldDevelopers": ["1051"],
+  "asOf": "2026-09-06",
+  "latestFinancials": "H1 2026 reviewed interim (30 June 2026); FY2025 audited by Deloitte (29 January 2026)",
+  "stance": { "label": "Stressed", "tone": "bad", "oneLine": "Repayment of the USD 500m sukuk due 28 February 2027 rests on second-half 2026 handovers; both agencies have the ratings on negative watch and the longer sukuk trade at 84–89." },
+  "header": {
+    "ratings": "Moody's Ba3 (review for downgrade, 11 Aug 2026) · Fitch BB- (Rating Watch Negative, Mar 2026) · S&P not rated",
+    "bondPrices": "Feb-2027 9.625%: 98.25 / 99.75 (YTM 13.4% / 10.2%) · Jul-2029 7.75%: 87.5 / 89.25 (13.2% / 12.4%) · Aug-2030 8.125%: 84.5 / 86.5 · Aug-2031 8.375%: 84.5 / 86.25 — DIB indicative, 4 Sep 2026",
+    "grossDebt": "AED 11.5 bn (30 Jun 2026) — sukuk AED 7.2 bn, secured bank AED 4.2 bn",
+    "unrestrictedCash": "AED 0.39 bn outside escrow (Moody's basis) · AED 10.2 bn in RERA escrow",
+    "nextMaturity": "USD 500m (AED 1.84 bn) sukuk, 28 February 2027, plus ~USD 510m of bank debt in 2027"
+  },
+  "periods": [
+    { "label": "FY2024", "revenue": 6345, "grossProfit": 2866, "ebitda": 2400, "netProfit": 1828, "totalAssets": 12704, "cash": 3766, "escrow": 3496, "debt": 3350, "equity": 3179, "contractLiabilities": 2591, "backlog": 9600, "sales": 11640, "cfo": -241 },
+    { "label": "FY2025", "revenue": 12425, "grossProfit": 5427, "ebitda": 4404, "netProfit": 3575, "totalAssets": 24368, "cash": 8843, "escrow": 8246, "debt": 8258, "equity": 6780, "contractLiabilities": 6271, "backlog": 16600, "sales": 17680, "cfo": 704, "financeCost": 530 },
+    { "label": "H1 2026", "revenue": 9498, "grossProfit": 4312, "ebitda": 3830, "netProfit": 2974, "totalAssets": 35625, "cash": 10578, "escrow": 10184, "debt": 11521, "equity": 9753, "contractLiabilities": 7896, "backlog": 17300, "sales": 9592, "cfo": -1342, "financeCost": 520, "note": "EBITDA includes AED 324m non-cash fair-value gain on units in related real-estate funds; ex-gain AED 3,506m" }
+  ],
+  "ratios": [
+    { "label": "Gross debt / EBITDA (LTM)", "fy2025": "1.9x", "h1_2026": "1.9x", "comment": "Company reports 1.9–2.2x; bank covenant ≤2.5x on net basis" },
+    { "label": "Net debt / EBITDA — counting only cash outside escrow", "fy2025": "1.7x", "h1_2026": "1.8x", "comment": "The company's 0.56x counts AED 7.9 bn of releasable escrow as cash" },
+    { "label": "EBITDA / finance cost", "fy2025": "8.3x", "h1_2026": "7.4x (6.7x ex fair-value gain)", "comment": "Comfortable on the P&L; the strain is cash timing, not coverage" },
+    { "label": "Cash outside escrow / debt due within 12 months", "fy2025": "1.1x", "h1_2026": "0.11x", "comment": "AED 0.39 bn against AED 3.56 bn due — the number that triggered Moody's review" },
+    { "label": "Net debt / equity — ex-escrow cash", "fy2025": "1.13x", "h1_2026": "1.14x", "comment": "Bank covenant 1.25x; company's own figure 0.35x uses releasable escrow" },
+    { "label": "Debt / equity", "fy2025": "1.22x", "h1_2026": "1.18x", "comment": "" },
+    { "label": "Free cash flow", "fy2025": "≈ +AED 0.3 bn", "h1_2026": "−AED 1.5 bn", "comment": "Land bank rose from AED 2.5 bn to 7.4 bn in six months" }
+  ],
+  "bonds": [
+    { "name": "9.625% sukuk due 28 Feb 2027", "isin": "XS2753304349", "sizeUsdM": 500, "issued": "Feb 2024 + Jul 2024 tap", "listing": "Nasdaq Dubai · LSE", "price": "98.25 / 99.75", "ytm": "13.4% / 10.2%", "note": "Bullet; no call. The maturity the market is pricing." },
+    { "name": "7.75% green sukuk due 2 Jul 2029", "isin": "XS3187728277", "sizeUsdM": 500, "issued": "Oct 2025", "listing": "Nasdaq Dubai · LSE ISM", "price": "87.5 / 89.25", "ytm": "13.2% / 12.4%", "note": "" },
+    { "name": "8.125% sukuk due 7 Aug 2030", "isin": "XS3145700491", "sizeUsdM": 500, "issued": "Aug 2025", "listing": "Nasdaq Dubai · LSE ISM", "price": "84.5 / 86.5", "ytm": "13.3% / 12.6%", "note": "5x covered at issue" },
+    { "name": "8.375% sukuk due 12 Aug 2031", "isin": "XS3289056395", "sizeUsdM": 500, "issued": "Feb 2026", "listing": "Nasdaq Dubai · LSE ISM", "price": "84.5 / 86.25", "ytm": "12.7% / 12.2%", "note": "Longest tenor by a UAE private developer; issued two weeks before the conflict" },
+    { "name": "Secured bank debt", "isin": "", "sizeUsdM": 1164, "issued": "various", "listing": "—", "price": "", "ytm": "3M EIBOR + 2.0–2.75%", "note": "AED 4.27 bn; mortgages over land (AED 3.7 bn), shareholder personal guarantees; covenants: net debt/equity ≤1.25x, net debt/EBITDA ≤2.5x, EBITDA/interest ≥2x, no dividends" }
+  ],
+  "maturityWall": [
+    { "year": "H2 2026", "usdM": 281, "sukukUsdM": 0 },
+    { "year": "2027", "usdM": 1010, "sukukUsdM": 500 },
+    { "year": "2028", "usdM": 374, "sukukUsdM": 0 },
+    { "year": "2029", "usdM": 500, "sukukUsdM": 500 },
+    { "year": "2030", "usdM": 500, "sukukUsdM": 500 },
+    { "year": "2031", "usdM": 500, "sukukUsdM": 500 }
+  ],
+  "ratingsHistory": [
+    { "date": "2026-08-11", "agency": "Moody's", "action": "Ba3 placed on review for downgrade", "why": "Unrestricted cash fell to ~AED 393m; ~AED 1.5 bn free cash outflow in H1; timing of cash flows uncertain against the Feb 2027 maturity" },
+    { "date": "2026-03", "agency": "Fitch", "action": "BB- placed on Rating Watch Negative", "why": "Sector-wide action on the regional conflict: demand, cancellations, construction costs, working capital" },
+    { "date": "2026-03", "agency": "Moody's", "action": "Ba3 affirmed, stable", "why": "Liquidity then judged adequate: AED 3.1 bn sources vs 2.4 bn uses through June 2027" },
+    { "date": "2025-03", "agency": "Fitch", "action": "Upgraded to BB-", "why": "100% pre-sold completions, net debt/EBITDA 0.8x" }
+  ],
+  "strengths": [
+    "Backward integration — in-house design, contracting and facade manufacturing — keeps gross margin at 44–45% (Moody's: 'strong backward integration')",
+    "Revenue backlog of AED 17.3 bn to be recognised over one to three years; more than 80% of 2026 deliveries already sold",
+    "Front-loaded payment plans (about 70% collected during construction) and the RERA escrow regime fund construction without the balance sheet",
+    "Market access proven: four USD 500m sukuk in twelve months, each four to five times covered, half the demand international",
+    "Equity has tripled to AED 9.75 bn through retained earnings; no dividends are permitted under the sukuk"
+  ],
+  "concerns": [
+    "Only AED 0.39 bn of the AED 10.6 bn reported cash sits outside escrow, against AED 3.56 bn of debt due within twelve months and the USD 500m sukuk in February 2027 — Moody's: liquidity 'weaker than anticipated'",
+    "Growth is debt-funded and fast: gross debt AED 3.3 bn (Dec 2024) → 8.3 bn (Dec 2025) → 11.5 bn (Jun 2026), while unit sales fell 5% in H1 2026",
+    "AED 1.23 bn is owed to the company by its shareholder and key managers for land and units sold to them, unpaid; fair-value gains on units contributed to related funds flow through EBITDA — governance is the recurring agency criticism (100% family owned, Fitch ESG governance score 4)",
+    "Secondary prices of 84–89 on the 2029–2031 sukuk mean any refinancing would cost 12–13%, far above the 7.75–8.4% coupons",
+    "Branded ultra-luxury towers (Bugatti, Jacob & Co, Mercedes-Benz Places) are absent from the 2026 handover schedule; Moody's: 'limited execution track record in uber luxury'",
+    "36% of debt is secured on land with shareholder guarantees, structurally ahead of the sukuk; there is no committed revolving facility"
+  ],
+  "view": {
+    "capacity": "On paper the business earns its interest many times over and leverage on an EBITDA basis is under two times. The problem is the shape of the cash, not the size of the profit. Almost everything the company calls cash is customer money in RERA escrow, released only as inspectors certify progress. Free cash outside escrow was AED 393 million at the end of June against AED 3.6 billion of debt falling due within a year, and the half-year burned roughly AED 1.5 billion buying land. The February 2027 sukuk (AED 1.84 billion) is therefore payable only if the ten mainstream towers scheduled for the second half of 2026 (AED 7.5 billion of value, 94% sold, about 80% collected) hand over on time and release their escrow, or if the market reopens for a refinancing. The company says AED 1.8 billion has already come in from three handovers since June.",
+    "refinancing": "The market is charging 12–13% to hold the 2029–2031 paper and the 2027 sukuk yields 10–13%. A new issue at those levels would be expensive but is not impossible for a company that placed USD 2 billion in the year to February; a bank bridge secured on the new Nad Al Sheba land is the more likely route if handovers slip. A downgrade to B1 by Moody's, which is what the review is considering, would widen the cost further and shrink the investor base.",
+    "restructuring": "A payment default or restructuring within the next twelve months is not the central case: delivery of already-sold, escrow-funded towers is the kind of execution the company has repeatedly managed, and the equity cushion is real. It becomes a live risk if a second wave of the conflict stalls handovers past February, if buyers on the final 30% instalments default in numbers, or if the company keeps buying land faster than it collects. Watch three numbers each quarter: cash outside escrow, debt due within twelve months, and the number of the ten towers that have received their completion certificates.",
+    "forBuyers": "Buyers' deposits are protected by escrow regardless of the parent's balance sheet, and completed projects have been delivered. The exposure for an off-plan buyer is time, not money: a developer under liquidity pressure prioritises the towers that release the most escrow and may slow the rest, and the branded towers already appear to be running behind the timetable the agencies expected. Compare the delay history on each project page before paying an instalment."
+  },
+  "sources": [
+    { "title": "Binghatti Holding interim FS 30 June 2026", "url": "https://binghatti-frankfurt-public.s3.eu-central-1.amazonaws.com/project-assets/binghatti-investor-relations-assets/binghatti-group-interim-consolidated-FS-30-June-2026.pdf", "date": "2026-07" },
+    { "title": "Binghatti H1 2026 results presentation", "url": "https://binghatti-frankfurt-public.s3.eu-central-1.amazonaws.com/project-assets/binghatti-investor-relations-assets/h1-2026-results-presentation.pdf", "date": "2026-07-28" },
+    { "title": "Binghatti Holding FY2025 audited FS (LSE RNS 9968Q)", "url": "https://www.rns-pdf.londonstockexchange.com/rns/9968Q_1-2026-1-29.pdf", "date": "2026-01-29" },
+    { "title": "Moody's Credit Opinion, Binghatti Holding (April 2026)", "url": "https://binghatti-frankfurt-public.s3.eu-central-1.amazonaws.com/project-assets/binghatti-investor-relations-assets/Moody%27s+Ratings+Report_April+2026.pdf", "date": "2026-04-01" },
+    { "title": "Moody's puts Binghatti ratings on review for downgrade (Reuters/Zawya)", "url": "https://www.tradingview.com/news/reuters.com,2026-08-11:newsml_Zawb7bptR:0-moody-s-puts-dubai-developer-binghatti-ratings-on-review-for-downgrade/", "date": "2026-08-11" },
+    { "title": "Binghatti dismisses debt fears, points to Dh10.6 billion in escrow (Khaleej Times)", "url": "https://www.khaleejtimes.com/business/binghatti-dismisses-debt-fears-points-to-dh106-billion-in-escrow-accounts", "date": "2026-08" },
+    { "title": "Fitch rating report, Binghatti (April 2025)", "url": "https://binghatti-frankfurt-public.s3.eu-central-1.amazonaws.com/project-assets/binghatti-investor-relations-assets/Binghatti+Rating+Report+Apr+2025.pdf", "date": "2025-04-01" },
+    { "title": "Dubai real estate bonds are starting to fall into distress (Bloomberg)", "url": "https://sg.finance.yahoo.com/news/dubai-real-estate-bonds-starting-034826092.html", "date": "2026-03-27" },
+    { "title": "DIB indicative sukuk prices", "url": "https://www.dib.ae/docs/default-source/cpr/dib-sukuk-list.pdf", "date": "2026-09-04" }
+  ],
+  "gaps": [
+    "Moody's August 2026 and Fitch March 2026 releases read through press coverage, not the agencies' own texts",
+    "Sukuk offering circulars not reviewed: call, change-of-control and cross-default terms unverified",
+    "Nature of the 'multibillion-dollar pact' reported by Bloomberg on 1 September 2026 unknown",
+    "Bank quotes are indicative levels, not traded prices"
+  ]
+}

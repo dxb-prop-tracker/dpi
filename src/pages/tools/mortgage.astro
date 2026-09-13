@@ -1,0 +1,9 @@
+---
+import Base from '../../layouts/Base.astro';
+import Mortgage from '../../components/Mortgage.astro';
+---
+<Base title="UAE mortgage affordability calculator (Central Bank rules)" crumbs={[{label:'Tools'},{label:'Mortgage'}]}>
+  <h1>Mortgage affordability, by the actual rules</h1>
+  <p class="lede">Most calculators assume one LTV for everyone. This one applies the Central Bank caps by buyer type, property sequence, price band and construction stage, then tells you which rule actually limited you.</p>
+  <Mortgage />
+</Base>

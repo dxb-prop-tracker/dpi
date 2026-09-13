@@ -1,0 +1,40 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q3, aed, areaLabel } from '../../lib/db';
+const s = q3.listingSummary();
+const inv = s.tracked > 0 ? q3.inventoryByArea().map(a => ({
+  ...a,
+  cutPct: a.active ? Math.round(100 * a.cut / a.active) : 0,
+  moi: a.sales12m > 0 ? (a.active / (a.sales12m / 12)).toFixed(1) : null,
+})) : [];
+const live = s.tracked > 0;
+---
+<Base title="Dubai listings under price pressure: asking-price cuts and unsold inventory by area" crumbs={[{label:'Listings'}]}>
+  <h1>Asking prices, and where they're being cut</h1>
+  <p class="lede">A unit listed at AED 10m in January and AED 9.5m today tells you something no register can: what sellers hoped for, and what the market refused. Tracked across every listing in an area, asking-price cuts and the depth of unsold inventory show where the pricing pressure is — before it appears in recorded sales.</p>
+
+  <div class="tiles">
+    <div class="tile hero"><div class="k">Listings tracked</div><div class="v">{s.tracked.toLocaleString()}</div><div class="s">{live ? `${s.active.toLocaleString()} live at last scan` : 'awaiting listing feed'}</div></div>
+    <div class="tile"><div class="k">Price scans</div><div class="v">{s.scans}</div><div class="s">{s.lastScan ? `latest ${s.lastScan}` : 'every scan is kept, forever'}</div></div>
+    <div class="tile"><div class="k">Validated drops</div><div class="v"><a href="/drops/">→</a></div><div class="s">cuts that pass the validation rules feed the <a href="/drops/">Drops & distress</a> page</div></div>
+  </div>
+
+  {live && <>
+  <h2>Inventory pressure by area</h2>
+  <p class="note">Cut share = listings priced below their own first observed asking price by 2% or more. Months of inventory = live listings ÷ average monthly recorded sales in the area over the last 12 months — the higher it is, the longer the queue of unsold stock, and the more room a buyer has to negotiate.</p>
+  <div class="scroll"><table><tr><th>Area</th><th class="num">Live listings</th><th class="num">Avg asking</th><th class="num">With cuts</th><th class="num">Cut share</th><th class="num">Avg cut</th><th class="num">Recorded sales 12m</th><th class="num">Months of inventory</th></tr>
+  {inv.map(a => <tr><td>{areaLabel(a.area)}</td><td class="num">{a.active.toLocaleString()}</td><td class="num">{aed(a.avgAsk)}</td><td class="num">{a.cut}</td><td class="num">{a.cutPct}%</td><td class="num down">{a.avgCutPct ?? '—'}%</td><td class="num">{a.sales12m.toLocaleString()}</td><td class="num">{a.moi ?? '—'}</td></tr>)}
+  </table></div>
+  </>}
+
+  {!live && <>
+  <h2>This section is built and waiting for one thing: listing data</h2>
+  <p style="max-width:820px">Everything on this page computes automatically the day listings start flowing. Listings enter only through two doors, both clean:</p>
+  <div class="grid2">
+    <div class="card"><b>A licensed portal feed</b><p class="note" style="font-size:13.5px">Bayut and Property Finder both sell access to their listing data. A daily or weekly feed of live listings per area gives full market coverage — every listing, every price change, true inventory counts. This is the route that makes the "months of inventory" metric real, because it needs the denominator: <i>all</i> live listings, not a sample. The feed lands as a scan file; the pipeline does the rest.</p></div>
+    <div class="card"><b>Agent submissions with a Trakheesi permit</b><p class="note" style="font-size:13.5px">Any broker can submit a listing with its mandatory Trakheesi advertising permit number. The permit ties the listing to a real, DLD-registered property — which is what lets us match asking prices against recorded sales in the same building. Partial coverage, but every row is verified. No agent contact data is stored.</p></div>
+  </div>
+  <h2>What gets published, and what doesn't</h2>
+  <p class="note" style="max-width:820px">Every scan of every listing is stored and never overwritten, so a price history survives even after a listing is pulled. A price cut is only <i>published</i> once it passes validation: the listing was seen at the higher price on at least two consecutive scans, seen after the cut at least once, and the cut is at least 2% and AED 25,000 — which filters out typos, relistings and portal glitches. Validated cuts appear on the <a href="/drops/">Drops & distress</a> page and on each project's own page, next to that project's recorded sales, so you can see whether an "urgent, motivated seller" is actually asking above what units really trade for.</p>
+  </>}
+</Base>

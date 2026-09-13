@@ -1,0 +1,30 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q3, aed, gapText, signClass, areaLabel } from '../../lib/db';
+const s = q3.rentSummary();
+const spread = s.rentNew && s.rentRenew ? s.rentNew / s.rentRenew - 1 : null;
+const areas = q3.rentAreas().map(a => ({
+  ...a,
+  spread: a.rentNew && a.rentRenew ? a.rentNew / a.rentRenew - 1 : null,
+  yoy: a.rpsm && a.rpsmLy && a.nLy >= 30 ? a.rpsm / a.rpsmLy - 1 : null,
+  yld: a.rpsm && a.salePsm ? a.rpsm / a.salePsm : null,
+}));
+---
+<Base title="Dubai rents from Ejari contracts: real rents by area, new vs renewal, yields" crumbs={[{label:'Rents'}]}>
+  <h1>What Dubai actually rents for, from the Ejari register</h1>
+  <p class="lede">Every rent on this page is a registered Ejari contract — not an advertised asking rent. New contracts show the price of moving today; renewals show what sitting tenants pay under the RERA cap. The gap between the two is where rents are heading.</p>
+  <div class="tiles">
+    <div class="tile hero"><div class="k">Residential contracts (12m)</div><div class="v">{s.n?.toLocaleString()}</div><div class="s">{s.nNew?.toLocaleString()} new · {(s.n - s.nNew)?.toLocaleString()} renewals</div></div>
+    <div class="tile"><div class="k">Avg new-contract rent</div><div class="v">{aed(s.rentNew)}</div><div class="s">all residential, city-wide</div></div>
+    <div class="tile"><div class="k">Avg renewal rent</div><div class="v">{aed(s.rentRenew)}</div><div class="s">sitting tenants, RERA-capped</div></div>
+    <div class="tile"><div class="k">New vs renewal</div><div class={'v ' + signClass(spread)}>{gapText(spread)}</div><div class="s">how far below market the average sitting tenant is</div></div>
+  </div>
+  <p class="note">City-wide averages mix unit sizes and areas; use the per-area and per-bedroom numbers below for anything that matters. <a href="/tools/rent/">Check the RERA rent-increase cap for a specific unit →</a></p>
+
+  <h2>Rents by area, last 12 months</h2>
+  <p class="note">Spread = average new-contract rent vs average renewal rent in the same area (a wide spread means renewals will step up, and landlords have room to push). YoY compares new-contract rent per sqm with the previous 12 months. Gross yield = rent per sqm ÷ recorded sale price per sqm, both from the registers. Click a column to sort; type to filter.</p>
+  <div class="scroll"><table><tr><th>Area</th><th class="num">Contracts</th><th class="num">Avg new rent</th><th class="num">Avg renewal</th><th class="num">Spread</th><th class="num">Rent AED/sqm</th><th class="num">YoY (new, /sqm)</th><th class="num">Gross yield</th></tr>
+  {areas.map(a => <tr><td><a href={`/rent/${a.slug}/`}>{areaLabel(a.area)}</a></td><td class="num">{a.n.toLocaleString()}</td><td class="num">{aed(a.rentNew)}</td><td class="num">{aed(a.rentRenew)}</td><td class={'num ' + signClass(a.spread)}>{gapText(a.spread)}</td><td class="num">{a.rpsm?.toLocaleString() ?? '—'}</td><td class={'num ' + signClass(a.yoy)}>{gapText(a.yoy)}</td><td class="num">{a.yld ? (a.yld * 100).toFixed(1) + '%' : '—'}</td></tr>)}
+  </table></div>
+  <p class="note">Areas with at least 200 residential contracts in the last 12 months. Rent per sqm uses contracts with a plausible registered area (20–2,000 sqm). Yields are gross, before service charges — the <a href="/tools/roi/">RoI calculator</a> nets them down.</p>
+</Base>

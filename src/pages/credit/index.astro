@@ -1,0 +1,36 @@
+---
+import Base from '../../layouts/Base.astro';
+import { creditData } from '../../lib/credit';
+import { issuer as loadIssuer } from '../../lib/developers';
+import { n, fmtDate } from '../../lib/reports';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const dir = path.resolve(process.cwd(), 'public/data/issuers');
+const ids = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('-register.csv')).map(f => f.replace('-register.csv', '')) : [];
+const rows = ids.map(id => ({ id, iss: loadIssuer(id), d: creditData(id) })).filter(x => x.d)
+  .sort((a, b) => (b.d!.meta.liveContractedAedM ?? 0) - (a.d!.meta.liveContractedAedM ?? 0));
+const asOf = rows[0]?.d?.meta.registerLastRead;
+---
+<Base title="Developer credit — the bond issuers, from the land registry" crumbs={[{ label: 'Credit' }]}>
+  <h1>Developer credit</h1>
+  <p class="lede">The Dubai developers with listed bonds and sukuk, each with the full working model behind it: the escrow release simulator, the handover check, the project register, the debt and the accounts. Every figure comes from the land registry and the published accounts, refreshed daily. We publish the record and the model; the conclusion is yours to draw. Register read {fmtDate(asOf)}. General information, not investment advice and not a credit opinion.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Issuer</th><th>Ratings</th><th class="num">Live projects</th><th class="num">Units</th><th class="num">Sold %</th><th class="num">Contracted, AED bn</th><th class="num">Past filed date</th><th>Next maturity</th></tr></thead>
+    <tbody>{rows.map(({ id, iss, d }) => {
+      const m = d!.meta;
+      const past = d!.live.filter(p => p.registered_completion && p.registered_completion < m.registerLastRead).length;
+      return <tr>
+        <td><a href={`/credit/${id}/`}><b>{iss?.brand ?? m.brand ?? id}</b></a></td>
+        <td style="font-size:12.5px">{iss?.header.ratings ?? '—'}</td>
+        <td class="num">{n(m.liveProjects)}</td>
+        <td class="num">{n(m.liveUnits)}</td>
+        <td class="num">{((m.liveSoldUnits / Math.max(1, m.liveUnits)) * 100).toFixed(1)}</td>
+        <td class="num">{(m.liveContractedAedM / 1000).toFixed(1)}</td>
+        <td class={'num ' + (past ? 'down' : '')}>{n(past)}</td>
+        <td style="font-size:12.5px">{iss?.header.nextMaturity ?? '—'}</td>
+      </tr>;
+    })}</tbody>
+  </table></div>
+  <p class="reads"><b>What this shows.</b> Every covered issuer on one line, ranked by the size of the book its bondholders are ultimately relying on, with the agencies' own ratings alongside. <b>How to read it.</b> Contracted value is what buyers owe over the life of the projects, not cash the developer holds — the escrow simulator on each issuer's page turns it into money that can actually be released, and by when. Towers past their filed completion date are the ones to watch: the largest instalment falls at handover.</p>
+</Base>

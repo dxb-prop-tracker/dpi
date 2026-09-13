@@ -1,0 +1,24 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q, aed, pct, gapClass, gapText, scoreClass, signClass, yoy } from '../../lib/db';
+export function getStaticPaths() { return q.allDrops().map(d => ({ params: { id: d.listing_id.replace(/:/g, '__') } })); }
+const d = q.drop(fromDropUrl(Astro.params.id!)); const hist = q.priceHistory(d.listing_id);
+const max = Math.max(...hist.map(h => h.asking_price)), min = Math.min(...hist.map(h => h.asking_price));
+const pts = hist.map((h, i) => `${(i / (hist.length - 1)) * 300},${40 - ((h.asking_price - min) / Math.max(1, max - min)) * 36 + 2}`).join(' ');
+---
+<Base title={`Validated drop: ${d.project ?? d.listing_id}, ${d.rooms_en}`} crumbs={[{label:'Validated drops',href:'/drops/'},{label:d.listing_id}]}>
+  <h1>{d.project ?? 'Unresolved project'} · {d.rooms_en}{d.is_off_plan ? ' · off-plan resale' : ''}</h1>
+  <p class="lede">{d.area_name_en} · {d.building_name_en} · {d.area_sqm} sqm · Permit {d.permit_number} · <a href={d.url} rel="nofollow noopener" target="_blank">View source listing ↗</a>{d.project_slug && <> · <a href={`/dubai/${d.area_slug}/${d.project_slug}/`}>Project page</a></>}</p>
+  <div class="tiles">
+    <div class="tile hero"><div class="k">Distress score</div><div class="v">{d.distress_score}</div></div>
+    <div class="tile"><div class="k">Asking now</div><div class="v" style="font-size:18px">{aed(d.current_price)}</div><div class="s down">-{pct(d.cumulative_pct)} from {aed(d.first_price)} · {d.drop_count} validated cut{d.drop_count === 1 ? '' : 's'}</div></div>
+    <div class="tile"><div class="k">vs recorded comps</div><div class={'v ' + gapClass(d.gap_to_recorded_pct).replace('num ','')} style="font-size:18px">{gapText(d.gap_to_recorded_pct)}</div><div class="s">asking {d.asking_psm?.toLocaleString() ?? '—'} vs recorded {d.recorded_median_psm?.toLocaleString() ?? '—'} AED/sqm</div></div>
+    <div class="tile"><div class="k">Tracked since</div><div class="v" style="font-size:18px">{hist[0].observed_at}</div><div class="s">{d.days_tracked} days · resolution: {d.resolution_method} ({d.resolution_confidence})</div></div>
+  </div>
+  <h2>Price history (from first observation)</h2>
+  <svg class="spark" width="300" height="44" viewBox="0 0 300 44"><polyline fill="none" stroke="#4472C4" stroke-width="2" points={pts} /></svg>
+  <div class="scroll"><table><tr><th>Scan</th><th class="num">Asking</th><th>Seen</th></tr>
+  {hist.map((h, i) => <tr><td>{h.observed_at}</td><td class={'num ' + (i && Math.sign(hist[i-1].asking_price - h.asking_price) === 1 ? 'down' : '')}>{aed(h.asking_price)}</td><td>{h.seen ? 'yes' : 'absent from scan'}</td></tr>)}
+  </table></div>
+  {d.validation_notes && <p class="note">Validator notes: {d.validation_notes}</p>}
+</Base>

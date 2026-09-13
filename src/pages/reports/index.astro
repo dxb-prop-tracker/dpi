@@ -1,0 +1,47 @@
+---
+import Base from '../../layouts/Base.astro';
+import { listReports, fmtDate, fmtDay, n } from '../../lib/reports';
+const weekly = listReports('weekly'), monthly = listReports('monthly'), yearly = listReports('yearly');
+const wk = (e: any) => { const h = e.report.headline; const S = h.salesGained > 0 ? e.report.sales.gained : e.report.sales.dated; return { sales: S.n, bn: S.valueBn, rents: h.rentsGained || h.rentsDated, prog: h.progressRevisions, w: h.withdrawn }; };
+---
+<Base title="Reports — weekly, monthly and yearly, from the Dubai Land Department register" crumbs={[{ label: 'Reports' }]}>
+  <div class="hero">
+    <h1>Reports</h1>
+    <p class="lede">Three cadences, one source. <b>Weekly</b>: what moved in the register — sales added and withdrawn, project progress and status changes — with the market pack for the week. <b>Monthly</b>: the month against the previous month, the same month in each of the last seven years, and the year to date. <b>Yearly</b>: the year against every year since 2008. Every chart and table says what it shows and how to read it; nothing is annualised or forecast.</p>
+  </div>
+
+  <section class="qs">
+    <h2><span class="no">1</span>Monthly</h2>
+    <p class="why">Published from the 3rd of the following month, once late registrations are in.</p>
+    {monthly.length === 0 && <p class="note">No monthly edition yet — run <code>npm run report -- --monthly YYYY-MM</code>.</p>}
+    <div class="cards">
+      {monthly.map(e => { const C = e.report.market.headline.cur, vol = e.report.market.headline.rows[0]; return <a class="pcard" href={`/reports/monthly/${e.key}/`}>
+        <div class="bd"><div class="m">Monthly · {fmtDate(e.report.to)}</div><h3>{e.report.label}</h3>
+        <div class="m">{n(C.n)} sales · AED {C.valueBn?.toFixed(1)} bn · median AED {n(C.medPsmUnit)}/sqm{vol?.yoyPct != null ? ` · volume ${vol.yoyPct > 0 ? '+' : ''}${vol.yoyPct.toFixed(0)}% y/y` : ''}</div></div>
+      </a>; })}
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">2</span>Yearly</h2>
+    <p class="why">The current year is year to date and refreshed with every weekly edition; earlier years are final.</p>
+    <div class="cards">
+      {yearly.map(e => { const C = e.report.market.headline.cur; return <a class="pcard" href={`/reports/yearly/${e.key}/`}>
+        <div class="bd"><div class="m">Annual{e.report.ytd ? ' · year to date' : ''}</div><h3>{e.report.year}{e.report.ytd ? ` to ${fmtDay(e.report.to)}` : ''}</h3>
+        <div class="m">{n(C.n)} sales · AED {C.valueBn?.toFixed(0)} bn · median AED {n(C.medPsmUnit)}/sqm apartments · {C.offplanPct}% off-plan</div></div>
+      </a>; })}
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">3</span>Weekly — the register moved</h2>
+    <p class="why">Each edition compares our copy of the register with the previous edition: what was added, what was withdrawn, what it cost, where it was, and every project whose status, progress or completion date moved — then the market pack for the week.</p>
+    <div class="cards">
+      {weekly.map(e => { const s = wk(e); return <a class="pcard" href={`/reports/weekly/${e.key}/`}>
+        <div class="bd"><div class="m">{fmtDay(e.report.from)} → {fmtDate(e.report.to)} · {e.report.days} days</div>
+        <h3>{n(s.sales)} sales, AED {s.bn?.toFixed(2)} bn</h3>
+        <div class="m">{n(s.rents)} rent contracts · {n(s.prog)} progress revisions{s.w ? ` · ${n(s.w)} withdrawn` : ''}</div></div>
+      </a>; })}
+    </div>
+  </section>
+</Base>

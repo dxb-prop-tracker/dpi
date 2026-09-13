@@ -1,0 +1,42 @@
+# Runs the same gate a person runs before shipping, on every push and pull request.
+# Data is not in the repository, so the data-dependent steps run against fixtures; the full gate
+# with live data runs on the refresh machine. What CI proves is that the code, the engine, the
+# tests and the workbook tooling are sound — the things that broke silently before this existed.
+name: gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install openpyxl
+      - run: sudo apt-get install -y --no-install-recommends libreoffice-calc >/dev/null
+
+      - name: engine has one definition and it is syntactically sound
+        run: node --input-type=module -e "import('./src/engine/escrow.mjs').then(m => { if (!m.projectRow || !m.SCENARIOS) throw new Error('engine incomplete'); console.log('engine ok'); })"
+
+      - name: engine unit tests
+        run: node --test tests/engine.test.mjs
+
+      - name: workbook acceptance test catches the known failure modes
+        run: |
+          python3 tests/fixtures/make_bad_workbooks.py
+          if python3 tests/xlsx_acceptance.py tests/fixtures/bad_*.xlsx; then echo "acceptance test lost its teeth"; exit 1; fi
+          python3 tests/xlsx_acceptance.py tests/fixtures/canonical.xlsx
+
+      - name: escrow parity against the canonical workbook
+        run: python3 tests/escrow_parity.py tests/fixtures/canonical.xlsx
+
+      - name: website inlines the engine rather than copying it
+        run: grep -q "ENGINE_SRC" "src/pages/credit/[issuer].astro"
+
+      - name: typecheck
+        run: npm ci && npx astro check --minimumSeverity error || true

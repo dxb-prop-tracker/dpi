@@ -1,0 +1,87 @@
+{
+  "id": "sobha",
+  "brand": "Sobha Realty",
+  "legalName": "PNC Investments LLC (Sobha Realty) — obligor under the Sobha Sukuk programmes; a separate group from Sobha Limited (India)",
+  "dldDevelopers": ["966", "283", "87", "89"],
+  "asOf": "2026-09-06",
+  "latestFinancials": "H1 2026 reviewed interim (30 June 2026, Grant Thornton, 4 August 2026); FY2025 audited (January 2026)",
+  "stance": { "label": "Sound, under watch", "tone": "warn", "oneLine": "Low leverage, a AED 29 bn backlog and no bond maturity until July 2028 — but presales halved in the first half of 2026, land was bought with AED 3 bn of secured debt, and S&P moved the outlook to negative." },
+  "header": {
+    "ratings": "Moody's Ba2 stable (affirmed Apr 2026) · S&P BB, outlook negative (Mar 2026) · Fitch not rated",
+    "bondPrices": "Jul-2028 8.75%: 99.3 / 101.25 (YTM ≈8.0%) · Feb-2029 8.0%: 97.5 / 99.9 (≈8.0%) · Sep-2030 7.125% green: 93.95 / 96.35 (≈8.2%) — Emirates Islamic indicative, 3 Sep 2026",
+    "grossDebt": "AED 9.7 bn (30 Jun 2026) — sukuk AED 6.3 bn, secured bank AED 3.4 bn",
+    "unrestrictedCash": "AED 1.5–1.6 bn outside escrow · AED 4.5 bn in escrow",
+    "nextMaturity": "USD 500m (AED 1.84 bn) sukuk, 17 July 2028; bank amortisation ≈ AED 0.9 bn in 2027"
+  },
+  "periods": [
+    { "label": "FY2024", "revenue": 8890, "grossProfit": 3510, "ebitda": 2300, "netProfit": 1860, "totalAssets": 15953, "cash": 2826, "escrow": 2414, "debt": 2010, "equity": 9210, "contractLiabilities": 1410, "backlog": null, "sales": 21100, "cfo": 3764, "financeCost": 228, "dividends": 603 },
+    { "label": "FY2025", "revenue": 14148, "grossProfit": 6404, "ebitda": 4700, "netProfit": 4049, "totalAssets": 28298, "cash": 6685, "escrow": 4591, "debt": 9482, "equity": 13040, "contractLiabilities": 3020, "backlog": 29000, "sales": 27600, "cfo": 4406, "financeCost": 490, "dividends": 997, "note": "AED 5.9 bn of land bought in 2025, including the AED 3.9 bn Al Yufrah 1 parcel financed with a AED 3 bn five-year secured loan" },
+    { "label": "H1 2026", "revenue": 6562, "grossProfit": 2974, "ebitda": 2200, "netProfit": 1785, "totalAssets": 29620, "cash": 6079, "escrow": 4470, "debt": 9729, "equity": 14076, "contractLiabilities": 3485, "backlog": 29000, "sales": 8100, "cfo": 1037, "financeCost": 390, "dividends": 570, "note": "Sales AED 8.1 bn against AED 15.7 bn a year earlier; 52 units cancelled for buyer default (18 a year earlier)" }
+  ],
+  "ratios": [
+    { "label": "Gross debt / EBITDA (LTM)", "fy2025": "2.0x", "h1_2026": "2.1x", "comment": "Was 0.9x at end-2024 before the land purchases" },
+    { "label": "Net debt / EBITDA (company)", "fy2025": "0.6x", "h1_2026": "0.8x", "comment": "Policy ceiling 2.75x; Moody's downgrade trigger 2.5x" },
+    { "label": "EBITDA / finance cost", "fy2025": "9.6x", "h1_2026": "5.6x", "comment": "Halved as a full period of the 2025 sukuk and the land loan came in" },
+    { "label": "Cash outside escrow / debt due within 12 months", "fy2025": "13x", "h1_2026": "2.6x", "comment": "Current debt AED 578m; unrestricted cash AED 1.5 bn" },
+    { "label": "Net debt / equity", "fy2025": "0.21x", "h1_2026": "0.26x", "comment": "Policy ceiling 1.25x" },
+    { "label": "Debt / equity", "fy2025": "0.73x", "h1_2026": "0.69x", "comment": "" },
+    { "label": "Cash from operations", "fy2025": "AED 4.4 bn", "h1_2026": "AED 1.0 bn (−55%)", "comment": "Working-capital outflow AED 1.1 bn in H1" }
+  ],
+  "bonds": [
+    { "name": "8.75% sukuk due 17 Jul 2028", "isin": "XS2633136234", "sizeUsdM": 500, "issued": "Jul 2023 + Sep 2024 tap", "listing": "Nasdaq Dubai · LSE ISM", "price": "99.3 / 101.25", "ytm": "≈8.0%", "note": "Callable (terms not obtained); company said in 2025 it may refinance with a new issue" },
+    { "name": "7.9955% sukuk due 19 Feb 2029", "isin": "XS3073626601", "sizeUsdM": 500, "issued": "May 2025", "listing": "Nasdaq Dubai · LSE ISM", "price": "97.5 / 99.9", "ytm": "≈8.0%", "note": "3x covered" },
+    { "name": "7.125% green sukuk due 11 Sep 2030", "isin": "XS3168203019", "sizeUsdM": 750, "issued": "Sep 2025", "listing": "Nasdaq Dubai · LSE ISM", "price": "93.95 / 96.35", "ytm": "≈8.2%", "note": "Largest green sukuk by a developer; spread widened from under 300bp to about 800bp in March 2026" },
+    { "name": "Secured bank debt", "isin": "", "sizeUsdM": 940, "issued": "Oct 2025 onward", "listing": "—", "price": "", "ytm": "EIBOR + 2%", "note": "AED 3.4 bn; AED 3 bn Al Yufrah 1 land loan (one-year moratorium then eight semi-annual instalments), mortgages over Al Yufrah, Hartland, Business Bay and other plots; AED 1.5 bn swapped to fixed" }
+  ],
+  "maturityWall": [
+    { "year": "H2 2026", "usdM": 27, "sukukUsdM": 0 },
+    { "year": "2027", "usdM": 251, "sukukUsdM": 0 },
+    { "year": "2028", "usdM": 700, "sukukUsdM": 500 },
+    { "year": "2029", "usdM": 710, "sukukUsdM": 500 },
+    { "year": "2030", "usdM": 956, "sukukUsdM": 750 },
+    { "year": "2031+", "usdM": 6, "sukukUsdM": 0 }
+  ],
+  "ratingsHistory": [
+    { "date": "2026-04", "agency": "Moody's", "action": "Ba2 affirmed, stable", "why": "Per company disclosure; agency text not retrieved" },
+    { "date": "2026-03", "agency": "S&P", "action": "BB affirmed, outlook revised to negative", "why": "Regional conflict; S&P separately said its rated UAE developers 'face no liquidity pressure'" },
+    { "date": "2025-04-22", "agency": "Moody's", "action": "Upgraded to Ba2", "why": "Strong sales, backlog AED 23 bn, expected debt/EBITDA 0.9x — before the 2025 land purchases" },
+    { "date": "2024-07-29", "agency": "S&P", "action": "Upgraded to BB stable", "why": "Presales and EBITDA growth" }
+  ],
+  "strengths": [
+    "Revenue backlog of about AED 29 bn against AED 9.7 bn of debt; collection backlog AED 34 bn against AED 23 bn of construction commitments",
+    "In-house construction (sister company Sobha Constructions, 55,000-plus workforce) — the agencies credit it with on-time delivery; 6,819 units scheduled for 2026 handover, the largest year to date, with the big five projects 80–92% complete and fully sold",
+    "Gross margin held at 45% through the first half of 2026; net debt/EBITDA 0.8x",
+    "No sukuk maturity until July 2028; 2026–27 maturities are bank amortisation of about AED 1 bn",
+    "S&P (March 2026): rated UAE developers 'face no liquidity pressure'; Moody's: backlog 'provides good revenue visibility over the next two years'"
+  ],
+  "concerns": [
+    "Presales fell 48% year on year in H1 2026 (AED 8.1 bn vs 15.7 bn) and buyer-default cancellations nearly tripled; cash from operations halved",
+    "Gross debt rose from AED 2.0 bn to 9.5 bn in one year to buy land (AED 5.9 bn in 2025), which is precisely the Moody's downgrade trigger — 'uses debt to fund its land bank in a way that weakens the company's financial profile'",
+    "Shareholder distributions continue through the slowdown: AED 997m paid in 2025 and AED 750m declared in H1 2026, while the stated policy ceilings were loosened (net debt/EBITDA 2.75x vs the 1.5x Moody's cited in 2025)",
+    "Only AED 1.5–1.6 bn of the AED 6.1 bn cash is outside escrow; 74% is customer money released against progress",
+    "Growing secured share of debt (35%) — Moody's warned a larger secured layer could notch the sukuk down",
+    "Concentrated ownership (PNC and Sobha Menon), a three-person board, a 1% revenue royalty and AED 691m owed by the construction affiliate: governance is the agencies' stated weakness; execution load is rising with a AED 40 bn Abu Dhabi launch"
+  ],
+  "view": {
+    "capacity": "This is the strongest balance sheet of the three issuers on this site. Debt is about two times EBITDA gross and under one time net; the interest bill is covered five to ten times; and the next bond is not due for nearly two years. The AED 29 billion backlog is already sold and, on the company's own arithmetic, the handover collections between now and mid-2028 cover the 2028 sukuk about four times over. Even a 2026 in which presales halved — which is what happened — leaves the company collecting on homes sold in 2024–25.",
+    "refinancing": "The 2028 sukuk trades near par and the 2030 green sukuk at 94–96, so the market still lends to Sobha at around 8% — the same coupon it paid last year. There is no need to refinance before 2028 and the 2028 paper is callable; the more likely event is a new issue when the primary market reopens for Gulf developers, which had not happened by September 2026. The risk to that access is a second S&P action: the outlook is already negative, and a downgrade to BB- would push the company towards the pricing Binghatti now faces.",
+    "restructuring": "A restructuring is remote on today's numbers. The path to trouble would be slow: a prolonged sales drought that leaves the AED 5.1 billion of land bought for future phases idle while the AED 3 billion land loan starts amortising in 2027, combined with distributions that keep draining the AED 1.5 billion of free cash. The two things to watch are the second-half 2026 presales number and whether dividends are cut if it does not recover.",
+    "forBuyers": "Delivery risk here is the lowest of the three: the company builds with its own contractor, the 2026 handover projects are 80–92% complete and fully sold, and there is no near-term debt event that would force it to slow sites. The buyer's question is price, not completion — Sobha's own sales have halved and cancellations have risen, which is the environment in which resale values in its communities are tested."
+  },
+  "sources": [
+    { "title": "PNC Investments LLC interim financial information H1 2026", "url": "https://sobharealty.com/sites/default/files/2026-08/Financial%20Statements%20H1%20FY26.pdf", "date": "2026-08-04" },
+    { "title": "Sobha Realty Investor Update H1 FY26", "url": "https://sobharealty.com/sites/default/files/2026-08/Investor%20Update%20H1%20FY26.pdf", "date": "2026-08" },
+    { "title": "PNC Investments LLC audited FS FY2025 (Nasdaq Dubai)", "url": "https://candidocs.nasdaqdubai.com/2026/Jan/22/6e33fbeb-64aa-4fba-b7c0-dd970eb16916/PNCI%20Financial%20Statements%20FY%202025.pdf", "date": "2026-01-22" },
+    { "title": "Sobha Realty Investor Update FY2025", "url": "https://sobharealty.com/sites/default/files/2026-01/Investor%20Update%20FY%202025.pdf", "date": "2026-01" },
+    { "title": "Moody's upgrades PNC Investments to Ba2 (Nasdaq Dubai)", "url": "https://candidocs.nasdaqdubai.com/2025/May/05/476825ce-08b6-46c3-b698-038147b7b65d/Rating_Action-Moodys-Ratings-upgrades-PNC-22Apr2025-PR_505777.pdf", "date": "2025-04-22" },
+    { "title": "S&P says its rated UAE developers face no liquidity pressure (Zawya)", "url": "https://www.tradingview.com/news/reuters.com,2026-03-17:newsml_Zaw6HBQ6C:0-zawya-s-p-says-its-rated-uae-developers-face-no-liquidity-pressure/", "date": "2026-03-17" },
+    { "title": "Sobha Realty: 6,819 units set for 2026 handover", "url": "https://sobharealty.com/media-center/press-releases/sobha-realty-marks-all-time-delivery-record-6819-units-set-handover", "date": "2026-07-22" },
+    { "title": "Emirates Islamic sukuk indicative prices", "url": "https://www.emiratesislamic.ae/-/media/ei/pdfs/general/sukuk-indicative-quotes/sukuk_indicative_quotes.pdf", "date": "2026-09-03" }
+  ],
+  "gaps": [
+    "S&P's March 2026 rationale and Moody's April 2026 affirmation read only through company disclosure",
+    "Call schedule of the 2028 sukuk and the programme covenants not obtained",
+    "Cumulative units delivered and 2026 presales in units not disclosed by the company",
+    "FY2025 sales reported two ways (AED 27.6 bn proportionate; AED 30 bn including joint ventures gross)"
+  ]
+}

@@ -1,0 +1,341 @@
+---
+interface Props { title: string; description?: string; crumbs?: { label: string; href?: string }[] }
+const { title, description = 'Dubai property intelligence from the land registry: recorded prices, real Ejari rents, project delays, price drops, and rule-correct mortgage, RoI and rent-cap calculators.', crumbs = [] } = Astro.props;
+import { q6 } from '../lib/db';
+const rd = q6.readDates();
+const fmtD = (iso?: string | null) => iso ? new Date(iso.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
+---
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title} | Dubai Property Intelligence</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={Astro.url.href} />
+  <meta property="og:title" content={title} /><meta property="og:description" content={description} />
+  <meta name="theme-color" content="#fffdf9" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="DPI" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,650&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style is:global>
+    :root{
+      --page:#faf7f2;--surface:#fffdf9;--ink:#221f1a;--ink2:#57524a;--muted:#6e675c;
+      --grid:#e7e1d5;--axis:#c9c1b1;--border:rgba(34,31,26,.12);--wash:#f4f0e8;
+      --accent:#0e5c63;--link:#0e5c63;--green:#0e7b52;--red:#b03426;--gold:#a9853e;
+      --serif:'Fraunces',Georgia,'Times New Roman',serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Inter',system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;color:var(--ink);background:var(--page);line-height:1.5}
+    .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+    a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+    /* ---- header ---- */
+    header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+    header .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+    .brand{font-family:var(--serif);font-weight:650;font-size:17px;color:var(--ink);letter-spacing:-.01em;white-space:nowrap}
+    .brand:hover{text-decoration:none}
+    .brand b{color:var(--accent)}
+    header nav{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap}
+    header nav a{font-size:13.5px;color:var(--ink2)}header nav a:hover{color:var(--ink)}
+    /* ---- search ---- */
+    .search{position:relative;flex:1 1 200px;max-width:340px}
+    .search input{width:100%;padding:7px 12px;border:1px solid var(--axis);border-radius:8px;font:inherit;font-size:13.5px;background:var(--page);color:var(--ink)}
+    .search input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent;background:var(--surface)}
+    .search .sr{position:absolute;top:calc(100% + 6px);left:0;right:0;min-width:300px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(11,11,11,.10);max-height:380px;overflow-y:auto;z-index:60}
+    .search .sr a{display:flex;align-items:baseline;gap:8px;padding:8px 12px;font-size:13.5px;color:var(--ink);border-bottom:1px solid var(--grid)}
+    .search .sr a:last-child{border-bottom:0}
+    .search .sr a:hover,.search .sr a.on{background:var(--wash);text-decoration:none}
+    .search .sr .tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);width:62px;flex:none}
+    .search .sr .x{color:var(--muted);font-size:12px;margin-left:auto;text-align:right}
+    .search.big{max-width:560px;margin:18px 0 6px}
+    .search.big input{padding:12px 16px;font-size:16px;border-radius:10px}
+    .search .sr .nlread{padding:8px 12px;font-size:12px;color:var(--muted);background:var(--wash);border-bottom:1px solid var(--grid)}
+    .search .sr .nlread b{color:var(--ink);font-weight:600}
+    /* ---- type ---- */
+    main{padding:26px 0 56px}
+    h1{font-family:var(--serif);font-weight:600;font-size:34px;line-height:1.18;letter-spacing:-.01em;margin:8px 0 8px}
+    h2{font-family:var(--serif);font-weight:600;font-size:21px;letter-spacing:0;margin:36px 0 8px}
+    .crumbs{font-size:12.5px;color:var(--muted)}.crumbs a{color:var(--muted)}
+    .lede{color:var(--ink2);margin:0 0 14px;max-width:760px;font-size:15.5px}
+    .note{font-size:12.5px;color:var(--muted);line-height:1.55}
+    .help{border-bottom:1px dotted var(--muted);cursor:help}
+    /* ---- stat tiles ---- */
+    .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}
+    .tile{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+    .tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    .tile .v{font-size:26px;font-weight:650;margin-top:3px;letter-spacing:-.01em}
+    .tile .s{font-size:12.5px;color:var(--muted);margin-top:2px}
+    .tile.hero{border-left:3px solid var(--accent)}
+    /* ---- doors (guided entry cards) ---- */
+    .doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:20px 0}
+    .door{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 18px 14px;display:block;color:var(--ink)}
+    .door:hover{text-decoration:none;border-color:var(--accent);box-shadow:0 4px 16px rgba(42,120,214,.08)}
+    .door h3{margin:0 0 6px;font-size:16px}
+    .door p{margin:0 0 8px;font-size:13.5px;color:var(--ink2)}
+    .door .go{font-size:13px;color:var(--link);font-weight:600}
+    /* ---- chart panel ---- */
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin:14px 0}
+    .panel .ttl{font-size:13.5px;font-weight:650;margin:0 0 2px}
+    .panel .sub{font-size:12px;color:var(--muted);margin:0 0 10px}
+    /* ---- tables ---- */
+    table{width:100%;border-collapse:collapse;background:var(--surface);font-size:13.5px}
+    th{color:var(--muted);text-align:left;padding:8px 10px;font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--axis);white-space:nowrap}
+    td{padding:8px 10px;border-bottom:1px solid var(--grid);vertical-align:top}
+    tr:hover td{background:var(--wash)}
+    .num{text-align:right;font-variant-numeric:tabular-nums}
+    .scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+    .scroll table{border-radius:10px}
+    .up{color:var(--green)}.down{color:var(--red)}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;background:#eef1f6;color:var(--ink2)}
+    .badge.hot{background:rgba(208,59,59,.12);color:#a32d2d}.badge.ok{background:rgba(12,163,12,.10);color:var(--green)}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+    form.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+    form.calc label{font-size:12px;color:var(--muted);display:block;margin-bottom:3px}
+    form.calc input,form.calc select{width:100%;padding:8px 10px;border:1px solid var(--axis);border-radius:7px;font:inherit;font-size:14px;color:var(--ink);background:var(--surface)}
+    form.calc input:focus,form.calc select:focus{outline:2px solid var(--accent);outline-offset:0}
+    .out{margin-top:14px;padding:12px 14px;background:var(--wash);border-radius:8px;font-size:14px}.out b{color:var(--ink)}
+    footer{border-top:1px solid var(--border);padding:20px 0;font-size:12px;color:var(--muted);line-height:1.6}
+    .spark{display:inline-block;vertical-align:middle}
+    .tblfilter{margin:10px 12px 6px;padding:8px 12px;border:1px solid var(--axis);border-radius:8px;font:inherit;font-size:13.5px;width:280px;max-width:100%;background:var(--surface)}
+    .scroll th{cursor:pointer;user-select:none}.scroll th[data-d="a"]::after{content:" ▲";font-size:9px}.scroll th[data-d="d"]::after{content:" ▼";font-size:9px}
+    /* ---- editorial components ---- */
+    .hero{padding:10px 0 4px}
+    .hero h1{font-size:40px;max-width:900px}
+    .hero .lede{font-size:17px;max-width:720px}
+    .summary{font-size:16px;line-height:1.65;color:var(--ink);max-width:780px;margin:8px 0 14px}
+    .summary b{font-weight:600}
+    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;margin:16px 0}
+    .kpi{padding:14px 16px;border-right:1px solid var(--grid)}.kpi:last-child{border-right:0}
+    .kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    .kpi .v{font-size:24px;font-weight:650;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+    .kpi .d{font-size:12px;margin-top:1px}.kpi .d.up::before{content:"▲ "}.kpi .d.down::before{content:"▼ "}
+    .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 18px;margin:12px 0 4px;padding:14px 16px;background:var(--wash);border-radius:12px}
+    .facts div{min-width:0}.facts dt{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.facts dd{margin:1px 0 0;font-size:14.5px;font-weight:500;overflow-wrap:anywhere}
+    .qs{margin:38px 0 0;padding-top:26px;border-top:1px solid var(--grid)}
+    .qs h2{display:flex;align-items:baseline;gap:12px;margin:0 0 4px}
+    .qs h2 .no{font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:999px;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex:none;position:relative;top:-3px}
+    .qs .why{font-size:13.5px;color:var(--muted);margin:0 0 12px;max-width:760px}
+    .verdict{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border);border-left-width:4px;margin:10px 0 14px;font-size:15px;line-height:1.55}
+    .verdict.ok{border-left-color:var(--green)}.verdict.warn{border-left-color:var(--gold)}.verdict.bad{border-left-color:var(--red)}.verdict.muted{border-left-color:var(--axis)}
+    .chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+    .chip.ok{background:rgba(14,123,82,.12);color:var(--green)}.chip.warn{background:rgba(169,133,62,.16);color:#7a5f22}.chip.bad{background:rgba(176,52,38,.12);color:var(--red)}.chip.muted{background:var(--wash);color:var(--ink2)}
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin:12px 0}
+    .pcard{display:block;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;color:var(--ink)}
+    .pcard:hover{text-decoration:none;border-color:var(--accent);box-shadow:0 6px 20px rgba(14,92,99,.10)}
+    .pcard .ph{aspect-ratio:16/10;background:linear-gradient(135deg,#e9e2d3,#f4efe6);display:flex;align-items:flex-end;padding:10px 12px;position:relative}
+    .pcard .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .pcard .ph .chip{position:relative;z-index:1}
+    .pcard .bd{padding:12px 14px 13px}
+    .pcard h3{margin:0 0 2px;font-size:15px;font-family:var(--serif);font-weight:600;line-height:1.3}
+    .pcard .m{font-size:12.5px;color:var(--muted)}
+    .pcard .p{margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .pcard .p b{font-size:17px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}.pcard .p span{font-size:12px;color:var(--muted);white-space:nowrap}
+    .photo{border-radius:12px;overflow:hidden;border:1px solid var(--border);margin:14px 0;background:var(--wash)}
+    .photo img{display:block;width:100%;max-height:420px;object-fit:cover}
+    .split{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start}@media(max-width:800px){.split{grid-template-columns:1fr}}
+    .method{margin-top:40px;padding:22px 0 0;border-top:1px solid var(--grid)}
+    .method h2{font-size:19px;margin:0 0 6px}
+    .method p{font-size:13.5px;color:var(--ink2);max-width:820px;margin:0 0 8px;line-height:1.6}
+    .method dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 16px;margin:12px 0 0}
+    .method dt{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.method dd{margin:0;font-size:13.5px}
+    footer .wrap{padding-top:6px}
+    .reads{font-size:13px;color:var(--ink2);line-height:1.55;margin:8px 0 4px;max-width:860px}.reads b{color:var(--ink);font-weight:600}
+    .panel .reads{margin-top:10px;padding-top:8px;border-top:1px solid var(--grid)}
+  </style>
+</head>
+<body>
+  <header><div class="wrap">
+    <a class="brand" href="/">Dubai<b>·</b>Property<b>·</b>Intelligence</a>
+    <div class="search" data-search>
+      <input type="search" placeholder="Try: 2 bed in JVC under 1.5m" autocomplete="off" aria-label="Search areas, projects and developers" />
+      <div class="sr" hidden></div>
+    </div>
+    <nav><a href="/dubai/">Buy</a><a href="/rent/">Rent</a><a href="/listings/">Listings</a><a href="/drops/">Drops & distress</a><a href="/developers/">Developers</a><a href="/credit/">Credit</a><a href="/reports/">Reports</a><a href="/price-index/">Price index</a><a href="/value/">Valuation</a><a href="/watchlist/">Watchlist</a><a href="/accuracy/">Accuracy</a><a href="/tools/">Calculators</a></nav>
+  </div></header>
+  <main><div class="wrap">
+    {crumbs.length > 0 && <div class="crumbs">{crumbs.map((c, i) => <>{i > 0 && ' › '}{c.href ? <a href={c.href}>{c.label}</a> : <span>{c.label}</span>}</>)}</div>}
+    <slot />
+  </div></main>
+  <script is:inline>
+  // Installable, and readable on a phone with no signal. Registered late so it never delays a page.
+  if ('serviceWorker' in navigator) window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  });
+  </script>
+  <script is:inline>
+  // ---- search (shared by the header box and any [data-search] on the page) ----
+  (function () {
+    var idx = null, loading = null;
+    function load() {
+      if (idx) return Promise.resolve(idx);
+      loading = loading || fetch('/search-index.json').then(function (r) { return r.json(); }).then(function (j) { idx = j; return j; });
+      return loading;
+    }
+    // ---- plain-English queries ----------------------------------------------------------------
+    // "2 bed in jvc under 1.5m", "studio marina yield", "cheapest 3 bedroom dubai hills".
+    // Deliberately a small rule set rather than a model: the site is static, it must answer offline
+    // and instantly, and a parser that is wrong in a way the user can see is better than one that is
+    // confidently wrong. Anything it cannot read falls through to the ordinary name search.
+    var NL = (function () {
+      var BEDS = [[/\bstudios?\b/, 'Studio'], [/\b(1|one)\s*(b\/?r|bed|bedroom|br)\b/, '1 B/R'],
+                  [/\b(2|two)\s*(b\/?r|bed|bedroom|br)\b/, '2 B/R'], [/\b(3|three)\s*(b\/?r|bed|bedroom|br)\b/, '3 B/R'],
+                  [/\b(4|four)\s*(b\/?r|bed|bedroom|br)\b/, '4 B/R'], [/\b(5|five)\s*(b\/?r|bed|bedroom|br)\b/, '5 B/R']];
+      var INTENT = [[/\b(yield|rental return|roi|return)\b/, 'yield'], [/\b(rent|renting|tenant)\b/, 'rent'],
+                    [/\b(service charge|charges|fees)\b/, 'charges'], [/\b(worth|value|valuation|price of)\b/, 'value'],
+                    [/\b(deliver|handover|completion|delay|late|overdue)\b/, 'delivery'],
+                    [/\b(drop|discount|distress|below market|bargain|cheap)\b/, 'drops'],
+                    [/\b(credit|bond|sukuk|issuer)\b/, 'credit']];
+      function money(q) {
+        var m = q.match(/(?:under|below|less than|up to|max)\s*(?:aed\s*)?([\d.,]+)\s*(m|mn|million|k|thousand)?/);
+        if (!m) return null;
+        var v = parseFloat(m[1].replace(/,/g, ''));
+        var u = (m[2] || '').toLowerCase();
+        if (u.indexOf('m') === 0) v *= 1e6; else if (u.indexOf('k') === 0 || u.indexOf('th') === 0) v *= 1e3;
+        return v > 0 ? v : null;
+      }
+      return function (raw) {
+        var q = ' ' + raw.toLowerCase() + ' ', out = { beds: null, max: money(q), intent: null, rest: raw };
+        for (var i = 0; i < BEDS.length; i++) if (BEDS[i][0].test(q)) { out.beds = BEDS[i][1]; break; }
+        for (var j = 0; j < INTENT.length; j++) if (INTENT[j][0].test(q)) { out.intent = INTENT[j][1]; break; }
+        // strip the parts we understood so the remainder can be matched against place names
+        out.rest = raw.toLowerCase()
+          .replace(/(?:under|below|less than|up to|max)\s*(?:aed\s*)?[\d.,]+\s*(?:m|mn|million|k|thousand)?/g, ' ')
+          .replace(/\b(studios?|beds?|bedrooms?|b\/?r|br)\b/g, ' ')
+          .replace(/\b(one|two|three|four|five|\d+)\b/g, ' ')
+          .replace(/\b(in|at|near|around|the|for|with|show|me|find|what|is|a|an|of|best|cheapest|good)\b/g, ' ')
+          .replace(/\s+/g, ' ').trim();
+        out.understood = !!(out.beds || out.max || out.intent);
+        return out;
+      };
+    })();
+
+    var INTENT_LABEL = { yield: 'rental yield', rent: 'rents', charges: 'service charges', value: 'valuation',
+                         delivery: 'delivery record', drops: 'price drops', credit: 'developer credit' };
+    function intentLink(intent, e) {
+      if (intent === 'value') return ['Value a unit here', '/value/' + (e && e.t === 'Building' ? '?b=' + encodeURIComponent(e.n) : '')];
+      if (intent === 'drops') return ['Price drops', '/drops/'];
+      if (intent === 'credit') return ['Developer credit', '/credit/'];
+      if (intent === 'rent' || intent === 'yield') return ['Rents and yields', e && e.t === 'Area' ? '/rent/' + e.u.split('/')[2] + '/' : '/rent/'];
+      if (intent === 'delivery') return ['Delivery records', '/developers/'];
+      if (intent === 'charges') return ['Service charges', e ? e.u : '/dubai/'];
+      return null;
+    }
+    function score(e, q) {
+      var n = e.n.toLowerCase(), s = -1;
+      if (n.startsWith(q)) s = 3;
+      else if (n.indexOf(' ' + q) >= 0 || n.indexOf('(' + q) >= 0 || n.indexOf('- ' + q) >= 0) s = 2;
+      else if (n.indexOf(q) >= 0) s = 1;
+      else return -1;
+      if (e.t === 'Area') s += 1.5; else if (e.t === 'Project') s += 0.3;
+      return s;
+    }
+    document.querySelectorAll('[data-search]').forEach(function (root) {
+      var inp = root.querySelector('input'), box = root.querySelector('.sr'), act = -1;
+      function close() { box.hidden = true; act = -1; }
+      function render(rows) {
+        if (!rows.length) { close(); return; }
+        box.innerHTML = rows.map(function (e) {
+          return '<a href="' + e.u + '"><span class="tag">' + e.t + '</span><span>' + e.n + '</span>' + (e.x ? '<span class="x">' + e.x + '</span>' : '') + '</a>';
+        }).join('');
+        box.hidden = false; act = -1;
+      }
+      function run() {
+        var raw = inp.value.trim();
+        if (raw.length < 2) { close(); return; }
+        var nl = NL(raw);
+        var q = (nl.understood && nl.rest.length >= 2 ? nl.rest : raw).toLowerCase();
+        load().then(function (ix) {
+          var rows = [];
+          for (var i = 0; i < ix.length; i++) { var s = score(ix[i], q); if (s >= 0) rows.push([s, ix[i]]); }
+          rows.sort(function (a, b) { return b[0] - a[0] || a[1].n.length - b[1].n.length; });
+          var hits = rows.slice(0, 12).map(function (r) { return r[1]; });
+          if (!nl.understood) { render(hits); return; }
+          // Say back what was understood, so a misreading is visible rather than silent.
+          var bits = [];
+          if (nl.beds) bits.push(nl.beds);
+          if (nl.max) bits.push('under AED ' + Math.round(nl.max).toLocaleString('en-GB'));
+          if (nl.intent) bits.push(INTENT_LABEL[nl.intent]);
+          var lead = '<div class="nlread">Reading that as: <b>' + bits.join(' · ') + '</b>' +
+                     (nl.rest ? ' in <b>' + nl.rest + '</b>' : '') + '</div>';
+          var link = intentLink(nl.intent, hits[0]);
+          var extra = link ? '<a href="' + link[1] + '"><span class="tag">Go to</span><span>' + link[0] + '</span></a>' : '';
+          if (!hits.length && !extra) { close(); return; }
+          box.innerHTML = lead + extra + hits.map(function (e) {
+            return '<a href="' + e.u + '"><span class="tag">' + e.t + '</span><span>' + e.n + '</span>' + (e.x ? '<span class="x">' + e.x + '</span>' : '') + '</a>';
+          }).join('');
+          box.hidden = false; act = -1;
+        });
+      }
+      inp.addEventListener('focus', function () { load(); });
+      inp.addEventListener('input', run);
+      inp.addEventListener('keydown', function (ev) {
+        var links = box.querySelectorAll('a');
+        if (ev.key === 'Escape') { close(); return; }
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          ev.preventDefault();
+          if (!links.length) return;
+          act = (act + (ev.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length;
+          links.forEach(function (l, i) { l.classList.toggle('on', i === act); });
+        } else if (ev.key === 'Enter' && links.length) {
+          window.location.href = links[act >= 0 ? act : 0].getAttribute('href');
+        }
+      });
+      document.addEventListener('click', function (ev) { if (!root.contains(ev.target)) close(); });
+    });
+  })();
+  // ---- tables: click-to-sort on every data table; text filter on big ones ----
+  document.querySelectorAll('.scroll > table').forEach(function (t) {
+    var head = t.rows[0]; if (!head || t.rows.length < 4) return;
+    Array.prototype.forEach.call(head.cells, function (th, ci) {
+      th.title = th.title || 'Click to sort';
+      th.addEventListener('click', function () {
+        var dir = th.dataset.d === 'd' ? 1 : -1;
+        Array.prototype.forEach.call(head.cells, function (h) { delete h.dataset.d; });
+        th.dataset.d = dir === 1 ? 'a' : 'd';
+        var rows = Array.prototype.slice.call(t.rows, 1);
+        var val = function (r) {
+          var c = r.cells[ci]; if (!c) return null;
+          var x = c.textContent.trim();
+          if (!x || x === '—') return null;
+          if (/^\d{4}-\d{2}-\d{2}/.test(x)) return x;
+          var n = parseFloat(x.replace(/[^0-9.\-]/g, ''));
+          return isNaN(n) ? x.toLowerCase() : n;
+        };
+        rows.sort(function (a, b) {
+          var x = val(a), y = val(b);
+          if (x === null) return 1; if (y === null) return -1;
+          if (typeof x === 'number' && typeof y === 'number') return dir * (x - y);
+          return dir * String(x).localeCompare(String(y));
+        });
+        rows.forEach(function (r) { t.appendChild(r); });
+      });
+    });
+    if (t.rows.length > 12) {
+      var inp = document.createElement('input');
+      inp.placeholder = 'Filter rows…'; inp.className = 'tblfilter'; inp.type = 'search';
+      t.parentElement.insertBefore(inp, t);
+      inp.addEventListener('input', function () {
+        var s = inp.value.toLowerCase();
+        Array.prototype.slice.call(t.rows, 1).forEach(function (r) { r.style.display = r.textContent.toLowerCase().indexOf(s) < 0 ? 'none' : ''; });
+      });
+    }
+  });
+  </script>
+  <footer><div class="wrap">
+    <div class="method">
+      <h2>Where these numbers come from</h2>
+      <p>This site reads two government records and says which one it is using on every page. Recorded prices are what buyers actually paid, from the Dubai Land Department's register of completed sales. Rents are contracts registered with Ejari. Construction status and completion dates are the DLD project register, read on the dates below and kept as a dated history that is never overwritten. Asking prices, where shown, come only from partnered feeds or permit-validated listings and are never mixed with recorded prices.</p>
+      <dl>
+        <div><dt>Sales register</dt><dd>{rd.txN.toLocaleString()} recorded sales, to {fmtD(rd.txTo)}</dd></div>
+        <div><dt>Ejari rent contracts</dt><dd>{rd.rentN.toLocaleString()} contracts, to {fmtD(rd.rentTo)}</dd></div>
+        <div><dt>Project register</dt><dd>{rd.registerN.toLocaleString()} projects, last read {fmtD(rd.registerAt)}</dd></div>
+        <div><dt>Listings</dt><dd>{rd.lastScan ? `last scan ${fmtD(rd.lastScan)}` : 'no live feed yet'}</dd></div>
+      </dl>
+      <p style="margin-top:14px">Dubai Open Data Licence — attribution: Dubai Land Department / data.dubai. Calculators are indicative and are not financial advice. Internal use only — pre-release build.</p>
+    </div>
+  </div></footer>
+</body>
+</html>

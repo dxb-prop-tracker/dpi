@@ -1,0 +1,96 @@
+---
+import Base from '../../layouts/Base.astro';
+import { n, fmtDate } from '../../lib/reports';
+import fs from 'node:fs';
+import path from 'node:path';
+const rd = (f: string) => { const p = path.resolve(process.cwd(), f); return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; };
+const avm = rd('public/data/avm/meta.json');
+const rsi = rd('public/data/index/rsi.json');
+const fc = rd('public/data/issuers/binghatti-forecast.json');
+const sup = rd('public/data/supply.json');
+const acc = avm?.accuracy;
+const m1 = (v: any, dp = 1) => v == null ? '—' : Number(v).toFixed(dp);
+---
+<Base title="How right have we been — our own scorecard" crumbs={[{ label: 'Accuracy' }]}>
+  <div class="acc">
+    <h1>How right have we been</h1>
+    <p class="lede">Every number on this site is either a record from the land registry or something we computed from one. The records speak for themselves. This page is about the computed ones: what we claim, how we test it, and how often we are wrong. It is recomputed every time the data refreshes, so it can get worse as well as better.</p>
+    <p class="note">We would rather publish an uncomfortable number than let you assume a comfortable one. Nobody in this market publishes how often their valuation misses.</p>
+
+    <section class="qs">
+      <h2><span class="no">1</span>The valuation</h2>
+      {acc ? <>
+        <p class="why">Tested against {n(acc.testedOn)} sales the model never saw. We hold out the most recent 3% of the register entirely, build the model on the rest, then value each held-out sale using only evidence dated before it and compare with what was actually paid.</p>
+        <div class="kpis">
+          <div class="kpi"><div class="v">{acc.medianAbsErrorPct}%</div><div class="l">Median error — half of valuations are closer than this</div></div>
+          <div class="kpi"><div class="v">{acc.within10Pct}%</div><div class="l">Within 10% of the price paid</div></div>
+          <div class="kpi"><div class="v">{acc.within20Pct}%</div><div class="l">Within 20%</div></div>
+          <div class="kpi"><div class="v">{n(acc.testedOn)}</div><div class="l">Sales tested, held out from {fmtDate(acc.heldOutFrom)}</div></div>
+        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>Comparable sales available</th><th class="num">Tested on</th><th class="num">Median error</th><th class="num">Within 10%</th><th>Range we publish</th></tr></thead>
+          <tbody>{acc.byCompCount.map((c: any) => <tr>
+            <td>{c.comps}</td><td class="num">{n(c.n)}</td>
+            <td class="num">{m1(c.medianAbsErrorPct, 2)}%</td><td class="num">{m1(c.within10Pct)}%</td>
+            <td>−{Math.round((1 - c.lowMult) * 100)}% to +{Math.round((c.highMult - 1) * 100)}%</td>
+          </tr>)}</tbody>
+        </table></div>
+        <p class="reads"><b>What this shows.</b> That the model is better where the evidence is denser — which is what you would expect, and what you should check. <b>How to read it.</b> The published range is not the spread of the comparables. We tried that and measured it: the true price fell inside it only four times in ten, which would have been a confidence interval that lied. The range above is the 10th-to-90th percentile of the model's own error on sales it had never seen, so "eight in ten" is a measurement.</p>
+        <h3 class="sub">Where it will be wrong, predictably</h3>
+        <ul class="lim">
+          <li>The land registry records no floor, no view and no finish. A high floor with a view sits above our range; a low floor facing a wall sits below it. That is a ceiling on any valuation built from transaction records, ours included.</li>
+          <li>Below five comparable sales in a tower we publish nothing at all rather than a wide guess.</li>
+          <li>We compute an area-level fallback and deliberately do not publish it: it measured at roughly twice the error of the tower-level figure.</li>
+        </ul>
+      </> : <p class="note">The valuation has not been built yet.</p>}
+
+      <h2><span class="no">2</span>The price index</h2>
+      {rsi ? <>
+        <p class="why">A repeat-sales index cannot be scored against an outcome the way a valuation can — there is no "true" index to compare it with. What can be shown is the evidence behind every point, which is the honest substitute.</p>
+        <div class="kpis">
+          <div class="kpi"><div class="v">{n(rsi.pairsUsed)}</div><div class="l">Pairs used</div></div>
+          <div class="kpi"><div class="v">{rsi.market.filter((p: any) => p.thin).length}</div><div class="l">Quarters flagged thin, of {rsi.market.length}</div></div>
+          <div class="kpi"><div class="v">{rsi.areas.length}</div><div class="l">Areas with enough pairs to publish</div></div>
+          <div class="kpi"><div class="v">v{rsi.version}</div><div class="l">Method frozen; the old series stays downloadable</div></div>
+        </div>
+        <p class="reads"><b>What this shows.</b> How much evidence each point stands on. <b>How to read it.</b> A quarter flagged thin should not be read on its own. The early years are thin by construction — repeat sales need time to accumulate, so no index of this kind can be strong at its own start.</p>
+      </> : null}
+
+      <h2><span class="no">3</span>The forecast — not yet scorable, and we will not pretend otherwise</h2>
+      {fc ? <>
+        <p class="why">A forecast can only be judged after the period it forecast. Ours covers quarters that have not happened. So here is the prediction, dated and on the record, to be scored when the register settles — that is the whole point of writing it down now.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Quarter</th><th class="num">Units — flat case</th><th class="num">Units — trend case</th><th>Scorable from</th></tr></thead>
+          <tbody>{(fc.issuerForecast?.units.quarters ?? []).filter((q: any) => q.months === 3).map((q: any) => <tr>
+            <td>{fc.brand} · {q.quarter}</td><td class="num">{n(q.flat)}</td><td class="num">{n(q.momentum)}</td>
+            <td>{q.quarter.endsWith('Q4') ? 'January' : 'the quarter after it closes'}</td>
+          </tr>)}</tbody>
+        </table></div>
+        <p class="reads"><b>What this shows.</b> A claim with a date on it. <b>How to read it.</b> Two cases are published, never one, because the gap between them is the honest width of the uncertainty — and when we score this, we will report how often the outcome fell between them, not just which case was closer.</p>
+      </> : null}
+
+      <h2><span class="no">4</span>What this site cannot see</h2>
+      <p class="why">The limits we know about. A list like this gets longer as we learn, not shorter.</p>
+      <ul class="lim">
+        <li><b>Floor, view and finish.</b> Not in the land registry, and the largest single source of valuation error.</li>
+        <li><b>Certified progress lags the site.</b> The percentage is only as fresh as the inspector's last visit, so a fast site can be further along than its figure and a stalled one can coast on an old number.</li>
+        <li><b>Mixed reading dates.</b> Projects are not all read on the same day, so two towers side by side in the same table may be measured weeks apart. We show the read date per project rather than averaging across vintages.</li>
+        <li><b>Sales that name no project.</b> Some records carry no project name and can never be matched, so a project showing few sales may simply be unnamed in the record — this also means unsold-unit counts are a <em>ceiling</em>, not a count.</li>
+        <li><b>Homes that never resold</b> are absent from the index entirely, and sellers may differ systematically from holders.</li>
+        <li><b>Asking prices are never mixed with paid prices.</b> Where an advertised figure appears it is labelled as one.</li>
+        {sup ? <li><b>Months of supply</b> ({m1(sup.monthsOfSupply)} market-wide) inherits the unsold ceiling above, so read it as an upper bound on how long stock would take to clear.</li> : null}
+      </ul>
+      <p class="reads"><b>What this shows.</b> The things that would make our numbers wrong, written by us rather than found by you. <b>How to read it.</b> If a figure here disagrees with something you know first-hand, we would rather hear it than leave it standing — first-hand knowledge of a specific building beats a register reading about it, and both beat an estimate.</p>
+    </section>
+  </div>
+
+  <style is:global>
+    .acc .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:14px 0}
+    .acc .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+    .acc .kpi .v{font-family:var(--serif);font-size:24px;font-weight:650}
+    .acc .kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+    .acc .lim{font-size:13.5px;line-height:1.65;padding-left:20px;max-width:860px}
+    .acc .lim li{margin-bottom:7px}
+    .acc .sub{font-family:var(--serif);font-size:16px;font-weight:650;margin:18px 0 6px}
+  </style>
+</Base>

@@ -1,0 +1,50 @@
+---
+import Base from '../../../layouts/Base.astro';
+import MarketPack from '../../../components/MarketPack.astro';
+import { listReports, fmtDate, n } from '../../../lib/reports';
+export function getStaticPaths() { return listReports('yearly').map(e => ({ params: { year: e.key }, props: { r: e.report } })); }
+const { r } = Astro.props;
+const M = r.market, C = M.headline.cur;
+const others = listReports('yearly').filter(e => e.key !== r.key).slice(0, 12);
+---
+<Base title={`${r.label} — Dubai property market report`} description={`Dubai's registered sales, prices, rents, yields, resales and supply pipeline for ${r.label}, against the previous month and a year earlier.`} crumbs={[{ label: 'Reports', href: '/reports/' }, { label: 'Monthly' }, { label: r.label }]}>
+  <style is:global>
+    .rep .kicker{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-weight:600}
+    .rep .hero h1{font-size:44px;margin-top:6px}.rep .hero h1 small{display:block;font-weight:400;color:var(--muted);font-size:30px}
+    .rep .rule{width:240px;height:3px;background:var(--red);margin:14px 0 18px}
+    .rep .callout{border-left:4px solid var(--gold);background:var(--wash);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0;font-size:14px;line-height:1.55}
+    .rep .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:800px){.rep .two{grid-template-columns:1fr}}
+    .rep table td.bold{font-weight:650}
+    .rep .toolbar{display:flex;gap:10px;align-items:center;margin:8px 0 0;font-size:13px;flex-wrap:wrap}
+    .rep .toolbar button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--axis);background:var(--surface);border-radius:8px;cursor:pointer;color:var(--ink)}
+    @media print{header,footer,.crumbs,.toolbar,.search,.tblfilter{display:none!important}body{background:#fff;font-size:12px}main{padding:0}.wrap{max-width:none;padding:0}.rep .qs{break-inside:avoid;border-top:0;margin-top:22px;padding-top:0}.rep .kpis{break-inside:avoid}.rep .panel,.rep .scroll{break-inside:avoid;border:0;padding:0}table{font-size:10px;width:100%}th,td{padding:4px 5px}a{color:inherit}.rep .scroll{overflow:visible}@page{size:A4;margin:12mm}.rep .two{grid-template-columns:1fr 1fr}.rep .two .panel svg{max-width:380px;margin:0 auto}.rep .hero{page-break-after:always}}
+  </style>
+  <div class="rep">
+  <div class="hero">
+    <div class="kicker">Dubai property market · annual report</div>
+    <h1>{r.year}{r.ytd ? ' so far' : ''}<small>{r.ytd ? `1 January to ${fmtDate(r.to)}` : 'the year in the register'}</small></h1>
+    <div class="rule"></div>
+    <p class="summary">{r.ytd ? <>So far in <b>{r.year}</b></> : <>In <b>{r.year}</b></>} the Dubai Land Department recorded <b>{n(C.n)} sales worth AED {C.valueBn?.toFixed(2)} billion</b> — a median of AED {n(C.medPsmUnit)} per square metre for apartments and AED {n(C.medPsmVilla)} for villas, with off-plan taking {C.offplanPct}% of sales. Ejari registered {n(M.headline.rentCur.n)} tenancy contracts. Every figure is a register count by date of sale or contract start, compared with {M.headline.periods.prev} and with {M.headline.periods.yoy}.</p>
+    <dl class="facts">
+      <div><dt>Period</dt><dd>{fmtDate(r.from)} → {fmtDate(r.to)}</dd></div>
+      <div><dt>Compared with</dt><dd>{M.headline.periods.prev} · {M.headline.periods.yoy}</dd></div>
+      <div><dt>Sales</dt><dd>{n(C.n)} · AED {C.valueBn?.toFixed(2)} bn</dd></div>
+      <div><dt>Rent contracts</dt><dd>{n(M.headline.rentCur.n)}</dd></div>
+      <div><dt>Source</dt><dd>DLD sales register and Ejari via the Digital Dubai production API; project register for supply</dd></div>
+    </dl>
+    <div class="toolbar"><button onclick="window.print()">Print / save as PDF</button><span class="note">Generated {fmtDate(r.generatedAt)}</span>{others.length > 0 && <span class="note">· other years: {others.map((o, i) => <>{i > 0 && ', '}<a href={`/reports/yearly/${o.key}/`}>{o.report.label}</a></>)}</span>}</div>
+  </div>
+  <MarketPack market={M} kind="yearly" start={1} />
+  <section class="qs">
+    <h2><span class="no">14</span>What this data cannot tell you</h2>
+    <ul class="cannot">
+      <li><b>A calendar year is an accounting convenience.</b> Cycles here have run three to five years; read the long-run chart before the year-on-year table.</li>
+      <li><b>Prices are medians of what was registered, not an index.</b> They move with the mix of areas and projects that happened to register. The home-size rent table and the apartment/villa lines are the most mix-resistant measures here.</li>
+      <li><b>The current year is year to date and refreshed weekly.</b> Its comparisons use the same part of earlier years, so they are fair; its totals are not comparable with full years.</li>
+      <li><b>Supply figures are the register's, not a site survey.</b> Registered units and completion dates are what developers filed; certified progress is an inspection record that lags the site by weeks.</li>
+      <li><b>Nothing here is a forecast or advice.</b></li>
+    </ul>
+    <p class="note" style="margin-top:14px">Dubai Land Department open data via the Digital Dubai production API. Sales are the "Sales" register only; mortgages and gifts are counted separately. Rent levels are for flats and villas. Prepared {fmtDate(r.generatedAt)}. Dubai Open Data Licence — attribution: Dubai Land Department / data.dubai.</p>
+  </section>
+  </div>
+</Base>

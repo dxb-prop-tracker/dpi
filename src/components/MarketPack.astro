@@ -1,0 +1,230 @@
+---
+// The market pack: the sections an investor expects in any period report (weekly, monthly, yearly).
+// Every chart and table carries a plain-language caption: what it shows, how to read it.
+import { lineChart, barStrip, hBars, columns } from '../lib/charts';
+import { n, signed, fmtDay } from '../lib/reports';
+const toMD = (iso: string) => fmtDay(iso);
+interface Props { market: any; kind: 'weekly' | 'monthly' | 'yearly'; start?: number; periodWord?: string }
+const { market: M, kind, start = 1 } = Astro.props;
+const H = M.headline, C = H.cur, P = H.prev, Y = H.yoy;
+let no = start - 1; const next = () => ++no;
+const aedM = (x: number | null) => x == null ? '—' : x >= 1e6 ? `AED ${(x / 1e6).toFixed(2)}m` : `AED ${n(x)}`;
+const fmtV = (v: any, fmt: string) => v == null ? '—' : fmt === 'bn' ? `AED ${Number(v).toFixed(2)} bn` : fmt === 'aed' ? aedM(v) : fmt === 'pct' ? `${v}%` : n(v);
+const chg = (v: number | null, fmt: string) => v == null ? '—' : (fmt === 'pct' || fmt === 'pts') ? `${signed(v, 1)} pts` : `${signed(v, 1)}%`;
+const cls = (v: number | null, invert = false) => v == null ? '' : (v > 0) !== invert ? 'up' : 'down';
+const prevWord = kind === 'monthly' ? 'the previous month' : kind === 'yearly' ? 'the previous year' : 'the previous period';
+const yoyWord = kind === 'monthly' ? 'the same month a year earlier' : kind === 'yearly' ? 'two years earlier' : 'the same days a year earlier';
+// Trend charts
+const mo = M.monthly;
+const volBars = barStrip(mo.map((r: any) => ({ m: r.m, n: r.n })), 'sales');
+const psmLine = lineChart(mo.map((r: any) => ({ m: r.m, psm: r.psmUnit, n: r.n })), { title: 'Median recorded AED/sqm, apartments, by month' });
+const villaLine = lineChart(mo.map((r: any) => ({ m: r.m, psm: r.psmVilla, n: r.n })), { title: 'Median recorded AED/sqm, villas, by month' });
+const valueBars = barStrip(mo.map((r: any) => ({ m: r.m, n: Math.round(r.valueBn * 100) / 100 })), 'AED bn');
+const yr = M.yearly;
+const yrBars = barStrip(yr.map((r: any) => ({ m: r.y, n: r.n })), 'sales');
+const yrLine = lineChart(yr.map((r: any) => ({ m: r.y, psm: r.psmUnit, n: r.n })), { title: 'Median recorded AED/sqm, apartments, by year' });
+const yrVilla = lineChart(yr.map((r: any) => ({ m: r.y, psm: r.psmVilla, n: r.n })), { title: 'Median recorded AED/sqm, villas, by year' });
+const areaBars = hBars(M.areas.slice(0, 12).map((a: any) => ({ label: a.area, v: a.n, note: `${a.share}% of sales · median AED ${n(a.medPsm)}/sqm` })), {});
+const bandCols = columns(M.bands.map((b: any) => ({ label: b.label.replace('AED ', '').replace(' and above', '+').replace('Under ', '<'), n: b.n })));
+const pipeCols = columns(M.pipeline.years.map((y: any) => ({ label: y.year === 'no date' ? 'no date' : y.year, n: y.units })));
+const yieldBars = hBars(M.yields.top.slice(0, 12).map((a: any) => ({ label: a.area, v: a.yieldPct, note: `rent AED ${a.rentPsm}/sqm ÷ price AED ${n(a.salePsm)}/sqm` })), { unit: '%' });
+// The read — computed sentences an investor would write in the margin.
+const r = (k: string) => H.rows.find((x: any) => x.label === k);
+const vol = r('Recorded sales'), val = r('Value of sales'), psmU = r('Median AED/sqm, apartments'), psmV = r('Median AED/sqm, villas'), off = r('Off-plan share of sales'), prem = r('Off-plan premium to ready, apartments'), lux = r('Sales of AED 10m and above'), mort = r('Mortgages per 100 sales'), rentN = r('Ejari contracts'), rentNew = r('Median new rent, annual');
+const dir = (v: number | null, up = 'rose', down = 'fell', flat = 'was flat') => v == null ? '' : Math.abs(v) < 0.5 ? flat : v > 0 ? up : down;
+const read = [
+  vol?.momPct != null ? `Volume ${dir(vol.momPct)} ${Math.abs(vol.momPct).toFixed(0)}% against ${prevWord} and ${dir(vol.yoyPct)} ${Math.abs(vol.yoyPct ?? 0).toFixed(0)}% against ${yoyWord}; value ${dir(val.yoyPct)} ${Math.abs(val.yoyPct ?? 0).toFixed(0)}% year on year${val.yoyPct != null && vol.yoyPct != null && val.yoyPct < vol.yoyPct - 3 ? ' — the market is transacting on smaller tickets' : val.yoyPct != null && vol.yoyPct != null && val.yoyPct > vol.yoyPct + 3 ? ' — tickets are getting bigger' : ''}.` : '',
+  psmU?.yoyPct != null ? `Apartment prices ${dir(psmU.yoyPct, 'are up', 'are down', 'are flat')} ${Math.abs(psmU.yoyPct).toFixed(1)}% year on year at a median of AED ${n(psmU.cur)}/sqm${psmV?.yoyPct != null ? `; villas ${dir(psmV.yoyPct, 'up', 'down', 'flat')} ${Math.abs(psmV.yoyPct).toFixed(1)}% at AED ${n(psmV.cur)}/sqm` : ''}.` : '',
+  off?.cur != null ? `Off-plan took ${off.cur}% of sales${prem?.cur != null ? ` and traded at a ${prem.cur > 0 ? 'premium' : 'discount'} of ${Math.abs(prem.cur).toFixed(0)}% to ready apartments per square metre${prem.yoyPct != null ? ` (${prem.yoyPct > 0 ? 'wider' : 'narrower'} by ${Math.abs(prem.yoyPct).toFixed(0)} points than a year ago)` : ''}` : ''}.` : '',
+  lux?.cur != null ? `${n(lux.cur)} sales cleared AED 10 million (${dir(lux.yoyPct, 'up', 'down', 'flat')} ${Math.abs(lux.yoyPct ?? 0).toFixed(0)}% on the year)${mort?.cur != null ? `; ${mort.cur} mortgages were registered per 100 sales${mort.yoyPct != null ? ` (${signed(mort.yoyPct, 0)} pts)` : ''}` : ''}.` : '',
+  rentN?.cur != null ? `Ejari registered ${n(rentN.cur)} contracts${rentNew?.cur != null ? `; the median new tenancy costs AED ${n(rentNew.cur)} a year${rentNew.yoyPct != null ? ` (${dir(rentNew.yoyPct, 'up', 'down', 'flat')} ${Math.abs(rentNew.yoyPct).toFixed(0)}% on the year)` : ''}` : ''}.` : '',
+  M.pipeline ? `The register carries ${n(M.pipeline.liveUnits)} units in ${n(M.pipeline.liveProjects)} live projects, ${n(M.pipeline.activeUnits)} of them in the ${n(M.pipeline.activeProjects)} under construction; ${n(M.pipeline.dueNext12.units)} units are due for handover in the next twelve months and ${n(M.pipeline.pastDue.units)} are already past their registered completion date.` : '',
+].filter(Boolean);
+const sliceWord = kind === 'monthly' ? 'this month' : 'this period';
+---
+<section class="qs">
+  <h2><span class="no">{next()}</span>The read</h2>
+  <p class="why">Six sentences an investor would write in the margin, generated from the tables below. Nothing here is a forecast.</p>
+  <div class="verdict muted"><div>{read.map((s, i) => <span>{s}{i < read.length - 1 ? ' ' : ''}</span>)}</div></div>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>The period against {prevWord} and {yoyWord}</h2>
+  <p class="why">Sixteen measures of the market, each shown three times: {H.periods.cur}, {H.periods.prev}, and {H.periods.yoy}. All from registered sales and Ejari contracts by date of sale or contract start.</p>
+  <div class="scroll"><table>
+    <tr><th>Measure</th><th class="num">{H.periods.cur}</th><th class="num">{H.periods.prev}</th><th class="num">Change</th><th class="num">{H.periods.yoy}</th><th class="num">Change, year on year</th></tr>
+    {H.rows.map((x: any) => <tr><td>{x.label}</td><td class="num bold">{fmtV(x.cur, x.fmt)}</td><td class="num">{fmtV(x.prev, x.fmt)}</td><td class={'num ' + cls(x.momPct)}>{chg(x.momPct, x.fmt)}</td><td class="num">{fmtV(x.yoy, x.fmt)}</td><td class={'num bold ' + cls(x.yoyPct)}>{chg(x.yoyPct, x.fmt)}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> The state of the market in one table. <b>How to read it.</b> Volume and value together tell you whether the market is moving on more deals or bigger deals; the two medians per square metre are the cleanest price signal because they ignore the mix of what sold; the off-plan premium is what buyers pay for a promise over a key; mortgages per 100 sales is the share of the market that needs a bank. Percent measures change in points, everything else in percent.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Volume and price, month by month</h2>
+  <p class="why">The last {mo.length} months. Sales are counted by the month the sale was registered; prices are the median of DLD's own price per square metre for apartments and for villas.</p>
+  <div class="panel"><p class="ttl">Recorded sales per month</p><Fragment set:html={volBars} /><p class="reads"><b>What this shows.</b> How many sales the register recorded each month. <b>How to read it.</b> Compare a month with the same month a year earlier rather than with the month before — registrations bunch around launches, holidays and quarter-ends. The latest month is often still filling in: sales reach the register a few days after they happen.</p></div>
+  <div class="panel"><p class="ttl">Value of sales per month, AED billion</p><Fragment set:html={valueBars} /><p class="reads"><b>What this shows.</b> The sum of prices paid each month. <b>How to read it.</b> When value moves more than volume, the ticket size is changing — a handful of AED 100m+ deals can move a month by a billion.</p></div>
+  <div class="panel"><p class="ttl">Median price per square metre, apartments</p><Fragment set:html={psmLine} /><p class="reads"><b>What this shows.</b> The middle price paid per square metre for an apartment each month, in AED. <b>How to read it.</b> This is the number to quote for "are prices rising". It is a median, so one tower of luxury registrations does not drag it; it does still move with the mix of areas that happen to register, so read a trend over several months, not a single move.</p></div>
+  <div class="panel"><p class="ttl">Median price per square metre, villas</p><Fragment set:html={villaLine} /><p class="reads"><b>What this shows.</b> The same measure for villas and townhouses. <b>How to read it.</b> Villa volumes are a tenth of apartments, so the line is noisier; a two-month move is normal, a two-quarter move is a trend.</p></div>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>The long run, {yr[0].y} to {yr[yr.length - 1].y}{yr[yr.length - 1].ytd ? ' year to date' : ''}</h2>
+  <p class="why">Every recorded sale since 2008, by year.</p>
+  <div class="panel"><p class="ttl">Recorded sales per year</p><Fragment set:html={yrBars} /><p class="reads"><b>What this shows.</b> Annual sales counts since the register went digital. <b>How to read it.</b> Three cycles are visible: the 2008 peak and crash, the 2013–14 recovery and 2015–19 slide, and the post-2020 run. The current year is year to date — compare it with the "year to date" table below, not with full years.</p></div>
+  <div class="panel"><p class="ttl">Median price per square metre by year, apartments</p><Fragment set:html={yrLine} /><p class="reads"><b>What this shows.</b> Where apartment prices stand against every previous year. <b>How to read it.</b> The 2014 peak is the reference most long-term investors use; the line tells you how far above or below it the market trades today in nominal dirhams.</p></div>
+  <div class="panel"><p class="ttl">Median price per square metre by year, villas</p><Fragment set:html={yrVilla} /><p class="reads"><b>What this shows.</b> The villa price line over the same years. <b>How to read it.</b> Villas lagged apartments until 2020 and led them after; the gap between the two lines is the villa premium.</p></div>
+  <div class="scroll"><table>
+    <tr><th>Year</th><th class="num">Sales</th><th class="num">Value (AED bn)</th><th class="num">Off-plan</th><th class="num">Median AED/sqm, apartments</th><th class="num">Median AED/sqm, villas</th></tr>
+    {yr.slice(-10).map((y: any) => <tr><td>{y.y}{y.ytd ? ' YTD' : ''}</td><td class="num">{n(y.n)}</td><td class="num">{y.valueBn?.toFixed(1)}</td><td class="num">{y.n ? Math.round(100 * y.off / y.n) : '—'}%</td><td class="num">{n(y.psmUnit)}</td><td class="num">{n(y.psmVilla)}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> The last ten years in numbers. <b>How to read it.</b> The off-plan column is the market's risk appetite: above 60% means most buyers are paying for buildings that do not yet exist.</p>
+</section>
+
+{M.sameSlice && <section class="qs">
+  <h2><span class="no">{next()}</span>{kind === 'monthly' ? 'This month in each of the last seven years' : 'The same period in each of the last seven years'}</h2>
+  <p class="why">The fairest comparison for a seasonal market: {sliceWord} against the identical calendar slice of earlier years.</p>
+  <div class="scroll"><table>
+    <tr><th>Year</th><th class="num">Sales</th><th class="num">vs prior year</th><th class="num">Value (AED bn)</th><th class="num">vs prior year</th><th class="num">Median AED/sqm, apartments</th><th class="num">vs prior year</th><th class="num">Villas AED/sqm</th><th class="num">Off-plan</th><th class="num">AED 10m+ sales</th></tr>
+    {M.sameSlice.map((y: any) => <tr><td>{y.y}</td><td class="num bold">{n(y.n)}</td><td class={'num ' + cls(y.nYoy)}>{y.nYoy == null ? '—' : signed(y.nYoy, 1) + '%'}</td><td class="num">{y.valueBn?.toFixed(2)}</td><td class={'num ' + cls(y.valueYoy)}>{y.valueYoy == null ? '—' : signed(y.valueYoy, 1) + '%'}</td><td class="num">{n(y.medPsmUnit)}</td><td class={'num ' + cls(y.psmYoy)}>{y.psmYoy == null ? '—' : signed(y.psmYoy, 1) + '%'}</td><td class="num">{n(y.medPsmVilla)}</td><td class="num">{y.offplanPct == null ? '—' : y.offplanPct + '%'}</td><td class="num">{n(y.lux)}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> The same weeks of the calendar, year after year. <b>How to read it.</b> Seasonality is removed by construction, so the "vs prior year" columns are the clean growth rates. A year where volume rises and the median price per square metre falls is a market broadening into cheaper stock, not a market falling.</p>
+</section>}
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Year to date, {M.ytd[0].y} to {M.ytd[M.ytd.length - 1].y}</h2>
+  <p class="why">1 January to {toMD(C.to)} in each year — the year so far against the same part of every earlier year.</p>
+  <div class="scroll"><table>
+    <tr><th>Year to {toMD(C.to)}</th><th class="num">Sales</th><th class="num">vs prior year</th><th class="num">Value (AED bn)</th><th class="num">vs prior year</th><th class="num">Median AED/sqm, apartments</th><th class="num">vs prior year</th><th class="num">Villas AED/sqm</th><th class="num">Off-plan</th><th class="num">AED 10m+ sales</th></tr>
+    {M.ytd.map((y: any) => <tr><td>{y.y}</td><td class="num bold">{n(y.n)}</td><td class={'num ' + cls(y.nYoy)}>{y.nYoy == null ? '—' : signed(y.nYoy, 1) + '%'}</td><td class="num">{y.valueBn?.toFixed(1)}</td><td class={'num ' + cls(y.valueYoy)}>{y.valueYoy == null ? '—' : signed(y.valueYoy, 1) + '%'}</td><td class="num">{n(y.medPsmUnit)}</td><td class={'num ' + cls(y.psmYoy)}>{y.psmYoy == null ? '—' : signed(y.psmYoy, 1) + '%'}</td><td class="num">{n(y.medPsmVilla)}</td><td class="num">{y.offplanPct == null ? '—' : y.offplanPct + '%'}</td><td class="num">{n(y.lux)}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> Cumulative activity from 1 January to the report date, in each year. <b>How to read it.</b> This is the table to use when someone says "this year is down": it compares like with like. The last row is the current year and moves with every report; the earlier rows are final.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>What sold: segments, tickets and the largest deals</h2>
+  <p class="why">The mix behind the headline for {H.periods.cur}.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="k">Apartments</div><div class="v">{n(C.units)}</div><div class="d">{C.n ? Math.round(100 * C.units / C.n) : 0}% of sales</div></div>
+    <div class="kpi"><div class="k">Villas</div><div class="v">{n(C.villas)}</div><div class="d">{C.n ? Math.round(100 * C.villas / C.n) : 0}% of sales</div></div>
+    <div class="kpi"><div class="k">Land</div><div class="v">{n(C.land)}</div><div class="d">plots</div></div>
+    <div class="kpi"><div class="k">Whole buildings</div><div class="v">{n(C.buildings)}</div><div class="d">registered as one sale</div></div>
+    <div class="kpi"><div class="k">Residential</div><div class="v">{C.residentialPct ?? '—'}%</div><div class="d">of sales by use</div></div>
+    <div class="kpi"><div class="k">Off-plan · ready</div><div class="v">{n(C.off)} · {n(C.ready)}</div><div class="d">{C.offplanPct}% off-plan</div></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> The composition of the period's sales by property type, use and registration type. <b>How to read it.</b> A rising villa share usually accompanies a rising average ticket; a rising land share signals developers buying plots for the next cycle.</p>
+  <div class="two">
+    <div class="panel"><p class="ttl">Sales by price band</p><Fragment set:html={bandCols} /><p class="reads"><b>What this shows.</b> How many sales fell in each price bracket. <b>How to read it.</b> The market is a pyramid: most sales are under AED 2m. Watch the top two bands — they are small in count and large in value, and they turn first.</p></div>
+    <div class="scroll"><table><tr><th>Price band</th><th class="num">Sales</th><th class="num">Share</th><th class="num">Value (AED bn)</th><th class="num">vs {H.periods.yoy}</th></tr>
+      {M.bands.map((b: any) => <tr><td>{b.label}</td><td class="num">{n(b.n)}</td><td class="num">{b.share}%</td><td class="num">{b.valueBn?.toFixed(2)}</td><td class={'num bold ' + cls(b.nYoy)}>{b.nYoy == null ? '—' : signed(b.nYoy, 1) + '%'}</td></tr>)}
+    </table></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> Each band's count and value against the same period a year earlier. <b>How to read it.</b> Growth concentrated under AED 1m with the top bands shrinking is a market driven by launches of small units; the reverse is an end-user and wealth market.</p>
+  <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">The largest deals</h3>
+  <div class="scroll"><table><tr><th>Date</th><th>Area</th><th>Project / building</th><th>Type</th><th class="num">Size (sqm)</th><th class="num">Price (AED)</th><th class="num">AED/sqm</th><th>Registered as</th></tr>
+    {M.deals.map((d: any) => <tr><td>{d.d}</td><td>{d.area}</td><td>{d.url ? <a href={d.url}>{d.project}</a> : (d.project ?? d.building ?? '—')}</td><td>{d.sub ?? d.type}{d.rooms ? ` · ${d.rooms}` : ''}</td><td class="num">{n(d.sqm)}</td><td class="num bold">{n(d.aed)}</td><td class="num">{n(d.psm)}</td><td>{d.reg === 'Off-Plan Properties' ? 'Off-plan' : 'Ready'}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> The twelve most expensive registrations of the period, land excluded. <b>How to read it.</b> Whole buildings and hotel assets appear here at a price per square metre that is not comparable with homes; for a like-for-like luxury benchmark use the villa and apartment lines above, not this list.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Where it sold: areas</h2>
+  <p class="why">The twenty busiest areas in {H.periods.cur}, with the price per square metre of apartments against {H.periods.yoy}.</p>
+  <div class="panel"><p class="ttl">Sales by area, top twelve</p><Fragment set:html={areaBars} /><p class="reads"><b>What this shows.</b> Where the period's sales were registered. <b>How to read it.</b> One area dominating with a very high off-plan share is usually a single developer's launch programme, not a neighbourhood boom.</p></div>
+  <div class="scroll"><table><tr><th>Area</th><th class="num">Sales</th><th class="num">Share</th><th class="num">vs {H.periods.yoy}</th><th class="num">Value (AED bn)</th><th class="num">Off-plan</th><th class="num">Median AED/sqm, apartments</th><th class="num">Price vs {H.periods.yoy}</th></tr>
+    {M.areas.map((a: any) => <tr><td><a href={`/dubai/${a.slug}/`}>{a.area}</a></td><td class="num bold">{n(a.n)}</td><td class="num">{a.share}%</td><td class={'num ' + cls(a.nYoy)}>{a.nYoy == null ? '—' : signed(a.nYoy, 0) + '%'}</td><td class="num">{a.valueBn?.toFixed(2)}</td><td class="num">{a.offplanPct}%</td><td class="num">{n(a.medPsm)}</td><td class={'num bold ' + cls(a.psmYoy)}>{a.psmYoy == null ? '—' : signed(a.psmYoy, 1) + '%'}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> Volume, value and the apartment price per square metre by area, each against a year earlier. <b>How to read it.</b> The last column is the area's price momentum. Areas with many sales and a small price move are liquid and stable; a large price move on few sales is a mix effect — check the area page before drawing a conclusion. Area names are the DLD register's, which differ from marketing names (Al Barsha South Fourth is Jumeirah Village Circle).</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Who sold it: developers and projects</h2>
+  <p class="why">Sales linked to the developer through the project register. {n(M.developers.linkedSales)} of the period's {n(M.developers.allSales)} sales ({M.developers.linkedPct}%) carry a project number that links to a registered developer; resales of ready homes largely do not. Both denominators are shown: share of linked sales is the developer's place among developers, share of all sales its place in the whole market.</p>
+  <div class="scroll"><table><tr><th>Developer</th><th class="num">Sales</th><th class="num">Share of linked sales</th><th class="num">Share of all sales</th><th class="num">vs {H.periods.yoy}</th><th class="num">Value (AED bn)</th><th class="num">Projects selling</th></tr>
+    {M.developers.rows.map((d: any) => <tr><td><a href={`/developers/${d.slug}/`}>{d.name}</a></td><td class="num bold">{n(d.n)}</td><td class="num bold">{d.shareLinked}%</td><td class="num">{d.share}%</td><td class={'num ' + cls(d.nYoy)}>{d.nYoy == null ? '—' : signed(d.nYoy, 0) + '%'}</td><td class="num">{d.valueBn?.toFixed(2)}</td><td class="num">{n(d.projects)}</td></tr>)}
+  </table></div>
+  <div class="callout">The five largest developers took <b>{M.developers.top5Share}%</b> of the period's sales. Concentration cuts both ways: it means the volume numbers depend on a few launch calendars, and it tells you whose delivery record matters most for the supply pipeline below.</div>
+  <p class="reads"><b>What this shows.</b> The developer league table for the period. <b>How to read it.</b> A developer's count is the number of units it registered as sold, mostly off-plan launches; the year-on-year column shows whose programme is accelerating. Names are the registered entity, so one brand can appear under several companies.</p>
+  <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Projects</h3>
+  <div class="scroll"><table><tr><th>Project</th><th>Area</th><th class="num">Sales</th><th class="num">Value (AED m)</th><th class="num">Off-plan</th><th class="num">Registered units</th><th class="num">Sold this period, % of units</th></tr>
+    {M.projects.map((p: any) => <tr><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td>{p.area}</td><td class="num bold">{n(p.n)}</td><td class="num">{n(p.valueM)}</td><td class="num">{p.offplanPct}%</td><td class="num">{n(p.units)}</td><td class="num">{p.soldPctOfUnits == null ? '—' : p.soldPctOfUnits + '%'}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> The projects that registered the most sales. <b>How to read it.</b> The last column is absorption: sales in the period as a share of the project's registered units. Above 50% in a single month is a launch selling out; a few percent in a completed project is normal resale turnover.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Rents</h2>
+  <p class="why">Ejari contracts starting in {H.periods.cur}: how many, new against renewal, and what homes cost to rent.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="k">Contracts</div><div class="v">{n(H.rentCur.n)}</div><div class="d">{rentN?.yoyPct == null ? '' : `${signed(rentN.yoyPct, 0)}% vs ${H.periods.yoy}`}</div></div>
+    <div class="kpi"><div class="k">New tenancies</div><div class="v">{H.rentCur.newPct ?? '—'}%</div><div class="d">the rest are renewals</div></div>
+    <div class="kpi"><div class="k">Median new rent</div><div class="v">{H.rentCur.medianNew ? `AED ${n(H.rentCur.medianNew)}` : '—'}</div><div class="d">homes, per year</div></div>
+    <div class="kpi"><div class="k">Median renewal</div><div class="v">{H.rentCur.medianRenew ? `AED ${n(H.rentCur.medianRenew)}` : '—'}</div><div class="d">homes, per year</div></div>
+    <div class="kpi"><div class="k">New rent per sqm</div><div class="v">{n(H.rentCur.medianPsmNew)}</div><div class="d">AED per sqm per year</div></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> The rental market's size and price for the period. <b>How to read it.</b> New tenancies are the market price; renewals are capped by the RERA index, so the gap between the two medians is the rent increase waiting for landlords when a tenant leaves.</p>
+  <div class="two">
+    <div class="scroll"><table><tr><th>Home size</th><th class="num">New contracts</th><th class="num">Median new rent, {H.periods.cur}</th><th class="num">{H.periods.prev}</th><th class="num">{H.periods.yoy}</th></tr>
+      {H.rentCur.rooms.map((x: any, i: number) => <tr><td>{x.key}</td><td class="num">{n(x.n)}</td><td class="num bold">{n(x.medianNew)}</td><td class="num">{n(H.rentPrev.rooms[i]?.medianNew)}</td><td class="num">{n(H.rentYoy.rooms[i]?.medianNew)}</td></tr>)}
+    </table></div>
+    <div class="reads" style="align-self:center"><b>What this shows.</b> Median new-contract rent by home size, in AED per year, for this period and the two comparison periods. <b>How to read it.</b> This is the cleanest rent index in the report because it holds the home size constant. Compare each row with its year-earlier figure, not with the row above.</div>
+  </div>
+  <div class="scroll"><table><tr><th>Area</th><th class="num">Contracts</th><th class="num">Share</th><th class="num">New</th><th class="num">Median new rent</th><th class="num">vs {H.periods.yoy}</th><th class="num">Median renewal</th><th class="num">New vs renewal</th></tr>
+    {M.rentAreas.map((a: any) => <tr><td><a href={`/rent/${a.slug}/`}>{a.area}</a></td><td class="num">{n(a.n)}</td><td class="num">{a.share}%</td><td class="num">{a.newPct}%</td><td class="num bold">{n(a.medianNew)}</td><td class={'num ' + cls(a.newYoy)}>{a.newYoy == null ? '—' : signed(a.newYoy, 0) + '%'}</td><td class="num">{n(a.medianRenew)}</td><td class={'num ' + cls(a.spread)}>{a.spread == null ? '—' : signed(a.spread, 0) + '%'}</td></tr>)}
+  </table></div>
+  <p class="reads"><b>What this shows.</b> The fifteen areas with the most home tenancies. <b>How to read it.</b> "New vs renewal" is how much more a new tenant pays than a renewing one in the same area — the larger it is, the more rent growth is still to come through as leases turn over. Medians by area move with the mix of home sizes; use the size table for the index.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Yields: what rent buys against what homes cost</h2>
+  <p class="why">Gross yield by area = median new-contract rent per square metre ÷ median price per square metre of ready apartments, both over the twelve months to {C.to}. Areas with fewer than 100 new contracts or 30 ready sales are left out.</p>
+  <div class="panel"><p class="ttl">Highest gross yields</p><Fragment set:html={yieldBars} /><p class="reads"><b>What this shows.</b> The areas where a year's rent is the largest share of the purchase price. <b>How to read it.</b> Gross, before service charges (typically 1–2 points of yield) and voids. High yields sit in the outer, cheaper areas; the trade-off is slower capital growth and thinner resale liquidity.</p></div>
+  <div class="two">
+    <div class="scroll"><table><tr><th>Highest</th><th class="num">Gross yield</th><th class="num">Rent AED/sqm</th><th class="num">Price AED/sqm</th></tr>{M.yields.top.map((a: any) => <tr><td><a href={`/dubai/${a.slug}/`}>{a.area}</a></td><td class="num bold">{a.yieldPct}%</td><td class="num">{n(a.rentPsm)}</td><td class="num">{n(a.salePsm)}</td></tr>)}</table></div>
+    <div class="scroll"><table><tr><th>Lowest</th><th class="num">Gross yield</th><th class="num">Rent AED/sqm</th><th class="num">Price AED/sqm</th></tr>{M.yields.bottom.map((a: any) => <tr><td><a href={`/dubai/${a.slug}/`}>{a.area}</a></td><td class="num bold">{a.yieldPct}%</td><td class="num">{n(a.rentPsm)}</td><td class="num">{n(a.salePsm)}</td></tr>)}</table></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> Both ends of the yield table across {M.yields.all} qualifying areas. <b>How to read it.</b> The lowest yields are the prime addresses: buyers there are paying for scarcity and capital growth, not income. A yield that rises because prices fell is not good news.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Resales: what sellers made</h2>
+  <p class="why">Homes sold in {H.periods.cur} that the register had already recorded as bought earlier (same building, size and layout), and the gain or loss between the two recorded prices.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="k">Resales matched</div><div class="v">{n(M.resales.all.n)}</div><div class="d">{n(M.resales.reregistrations)} same-price re-registrations excluded</div></div>
+    <div class="kpi"><div class="k">Median gain</div><div class="v">{M.resales.all.medianGainPct == null ? '—' : signed(M.resales.all.medianGainPct, 1) + '%'}</div><div class="d">middle half {M.resales.all.q1 == null ? '' : `${signed(M.resales.all.q1, 0)}% to ${signed(M.resales.all.q3, 0)}%`}</div></div>
+    <div class="kpi"><div class="k">Sold at a loss</div><div class="v">{M.resales.all.lossPct == null ? '—' : M.resales.all.lossPct + '%'}</div><div class="d">of matched resales</div></div>
+    <div class="kpi"><div class="k">Median hold</div><div class="v">{M.resales.all.medianHoldMonths == null ? '—' : M.resales.all.medianHoldMonths + ' mo'}</div><div class="d">{n(M.resales.quickFlips)} held under a year</div></div>
+    <div class="kpi"><div class="k">Bought off-plan</div><div class="v">{n(M.resales.offplanBought.n)}</div><div class="d">median gain {M.resales.offplanBought.medianGainPct == null ? '—' : signed(M.resales.offplanBought.medianGainPct, 1) + '%'} · {M.resales.offplanBought.lossPct ?? '—'}% at a loss</div></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> Realised returns, not asking-price hopes: the difference between what a home last sold for and what it sold for now. <b>How to read it.</b> The share sold at a loss is the honest measure of a market's downside; the "bought off-plan" tile isolates flippers. Matching is by building, size and layout, so a small share of pairs may be different units of the same type.</p>
+</section>
+
+<section class="qs">
+  <h2><span class="no">{next()}</span>Supply: what is coming, and what is late</h2>
+  <p class="why">From the project register as of {M.pipeline.asOf}: every project not yet finished or cancelled, with its registered units and expected completion.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="k">Under construction</div><div class="v">{n(M.pipeline.activeUnits)}</div><div class="d">units in {n(M.pipeline.activeProjects)} active projects</div></div>
+    <div class="kpi"><div class="k">All live projects</div><div class="v">{n(M.pipeline.liveUnits)}</div><div class="d">units incl. pending and not started</div></div>
+    <div class="kpi"><div class="k">Due within 12 months</div><div class="v">{n(M.pipeline.dueNext12.units)}</div><div class="d">units in {n(M.pipeline.dueNext12.projects)} projects, none of them already late</div></div>
+    <div class="kpi"><div class="k">Past due</div><div class="v">{n(M.pipeline.pastDue.units)}</div><div class="d">units in {n(M.pipeline.pastDue.projects)} live projects past their registered date</div></div>
+    <div class="kpi"><div class="k">Behind schedule</div><div class="v">{n(M.pipeline.behind.units)}</div><div class="d">units due within a year but under 60% certified</div></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> The size of the pipeline and how much of it is late. <b>How to read it.</b> Every figure in this section counts the same population — live projects, meaning active, pending and registered-but-not-started — and applies the same test for lateness: the registered completion date is in the past. "Past due" is the register's own admission of delay. "Behind schedule" is the forward-looking version: still to come, but the inspections say it will not make it. "Due within 12 months" excludes anything already late, so the two never overlap.</p>
+  <div class="two">
+    <div class="panel"><p class="ttl">Units by expected completion year</p><Fragment set:html={pipeCols} /><p class="reads"><b>What this shows.</b> Registered units by the year the register expects them. Every live unit is in exactly one bar, so the bars add up to the {n(M.pipeline.liveUnits)} units in the "all live projects" tile above. <b>How to read it.</b> Handover years slip to the right over time; the bar for the current year is what is still to come this year — anything whose date has already passed is in "past due", not in the year bar. "No date" is supply the register carries with no completion date at all, which is neither promised nor discountable.</p></div>
+    <div class="scroll"><table><tr><th>Area</th><th class="num">Live projects</th><th class="num">Units</th><th class="num">Past due</th></tr>{M.pipeline.areas.map((a: any) => <tr><td><a href={`/dubai/${a.slug}/`}>{a.area}</a></td><td class="num">{n(a.projects)}</td><td class="num bold">{n(a.units)}</td><td class={'num ' + (a.pastDue ? 'down' : '')}>{n(a.pastDue)}</td></tr>)}</table></div>
+  </div>
+  <p class="reads"><b>What this shows.</b> Where the pipeline is concentrated. <b>How to read it.</b> Set an area's pipeline against its current stock and sales pace: tens of thousands of units arriving into an area that trades a few hundred sales a month is the definition of oversupply risk.</p>
+  <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Developers with the most under construction</h3>
+  <div class="scroll"><table><tr><th>Developer</th><th class="num">Live projects</th><th class="num">Units</th><th class="num">Past due</th></tr>{M.pipeline.developers.map((d: any) => <tr><td>{d.developer}</td><td class="num">{n(d.projects)}</td><td class="num bold">{n(d.units)}</td><td class={'num ' + (d.pastDue ? 'down' : '')}>{n(d.pastDue)}</td></tr>)}</table></div>
+  <p class="reads"><b>What this shows.</b> Delivery exposure by developer. <b>How to read it.</b> The "past due" column against "active projects" is a delivery record in one glance; read it with the sales league above to see whether the developers selling the most are also the ones delivering late.</p>
+  {M.pipeline.behind.list.length > 0 && <>
+    <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Due within a year, under 60% certified</h3>
+    <div class="scroll"><table><tr><th>Project</th><th>Area</th><th>Developer</th><th class="num">Certified</th><th>Due</th><th class="num">Units</th></tr>{M.pipeline.behind.list.map((p: any) => <tr><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td>{p.area}</td><td>{p.developer ?? '—'}</td><td class="num bold">{p.pct == null ? '—' : p.pct + '%'}</td><td>{p.due}</td><td class="num">{n(p.units)}</td></tr>)}</table></div>
+    <p class="reads"><b>What this shows.</b> The largest projects whose certified progress does not match their promised date. <b>How to read it.</b> Certification lags reality by weeks, so 55% with nine months to go is fine; 20% with six months to go is a delay that has not yet been admitted. Buyers with instalments in these projects should check the project page's delay history.</p>
+  </>}
+  {M.pipeline.pastDueList.length > 0 && <>
+    <h3 style="margin:22px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red)">Largest projects past their registered completion date</h3>
+    <div class="scroll"><table><tr><th>Project</th><th>Area</th><th>Developer</th><th class="num">Certified</th><th>Was due</th><th class="num">Units</th></tr>{M.pipeline.pastDueList.map((p: any) => <tr><td>{p.url ? <a href={p.url}>{p.name}</a> : p.name}</td><td>{p.area}</td><td>{p.developer ?? '—'}</td><td class="num">{p.pct == null ? '—' : p.pct + '%'}</td><td class="down">{p.due}</td><td class="num">{n(p.units)}</td></tr>)}</table></div>
+    <p class="reads"><b>What this shows.</b> Active projects whose registered date has passed, largest first. <b>How to read it.</b> A project at 100% certified and past due is usually awaiting its completion certificate — a paperwork delay. One at 30% and two years past due is a stalled site.</p>
+  </>}
+</section>

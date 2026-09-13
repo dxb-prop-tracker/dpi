@@ -1,0 +1,367 @@
+---
+import Base from '../../layouts/Base.astro';
+import { creditData, forecastData, SCENARIOS, SCENARIO_NOTES } from '../../lib/credit';
+import { issuer as loadIssuer, groups } from '../../lib/developers';
+import { n, fmtDate } from '../../lib/reports';
+import fs from 'node:fs';
+import path from 'node:path';
+// The escrow engine is inlined from its one source file, with the module syntax stripped, so the
+// browser runs byte-for-byte the same arithmetic tests/escrow_parity.py proves against the workbook.
+const ENGINE_SRC = fs.readFileSync(path.resolve(process.cwd(), 'src/engine/escrow.mjs'), 'utf8')
+  .replace(/^export\s+(const|function)\s/gm, '$1 ');
+
+export function getStaticPaths() {
+  const dir = path.resolve(process.cwd(), 'public/data/issuers');
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(f => f.endsWith('-register.csv'))
+    .map(f => ({ params: { issuer: f.replace('-register.csv', '') } }));
+}
+
+const id = Astro.params.issuer!;
+const data = creditData(id)!;
+const iss = loadIssuer(id);
+const brand = iss?.brand ?? data.meta.brand ?? id;
+const MODELS = (() => { const f = path.resolve(process.cwd(), 'public/downloads/credit/manifest.json');
+  return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {}; })();
+const model = MODELS[id] ?? null;
+const devSlug = groups.find(g => g.issuer === id)?.slug ?? null;
+
+const fc = forecastData(id);
+const live = data.live;
+const pastDue = live.filter(p => p.registered_completion && p.registered_completion < data.meta.registerLastRead).length;
+const undated = live.filter(p => !p.registered_completion).length;
+const liveContracted = live.reduce((a, p) => a + p.contracted_aed_m, 0);
+const share12m = data.meta.dubaiValue12mAedM ? (data.meta.value12mAedM / data.meta.dubaiValue12mAedM) * 100 : null;
+
+// Everything the simulator needs, in the browser. The same rows the workbook's Simulator tab holds.
+const simRows = live.map(p => ({ k: p.project_number, p: p.project, s: p.status, c: p.certified_pct ?? 0,
+  d: p.registered_completion, u: p.units, so: p.sold_units, t: p.avg_ticket_aed }));
+
+const TABS = [
+  ['dashboard', 'Dashboard'], ['simulator', 'Simulator'], ['forecast', 'Next quarter'], ['handover', 'Handover check'],
+  ['projects', 'Projects'], ['debt', 'Debt & bonds'], ['financials', 'Financials'], ['sources', 'Ratings & sources'],
+];
+const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+---
+<Base title={`${brand} — credit model`} crumbs={[{ label: 'Credit', href: '/credit/' }, { label: brand }]}>
+  <div class="credit">
+    <h1>{brand} — credit model</h1>
+    <p class="lede">{iss?.legalName ?? ''} The same model as the downloadable workbook, tab for tab, reading the same register data. Register read {fmtDate(data.meta.registerLastRead)}; transactions to {fmtDate(data.meta.transactionsLastRead)}. Everything here is from the public record — the land registry, the audited accounts, the offering circulars and the rating agencies. We do not publish a credit opinion of our own: the model is here so you can form yours.</p>
+
+    {model && <div class="dlbar">
+      <div><b>Download the model</b> — the whole thing in Excel, with the monthly grid and the scenario blocks this page summarises. Built {fmtDate(model.built)}, {(model.bytes / 1048576).toFixed(1)} MB.{model.derived && <span class="note"> Cut from our canonical model, so the calculations match the other issuers exactly. The bank-debt maturity split, the 12-month debt disclosure and the covenant thresholds are left blank rather than assumed — they are marked in the workbook.</span>}</div>
+      <a class="dlbtn" href={model.href} download>Download .xlsx</a>
+    </div>}
+
+    <nav class="tabs" role="tablist">
+      {TABS.map(([k, label], i) => <button class={'tab' + (i === 0 ? ' on' : '')} data-tab={k} role="tab">{label}</button>)}
+    </nav>
+
+    <!-- ============================= Dashboard ============================= -->
+    <section class="pane on" data-pane="dashboard">
+      {iss && <div class="credithead">
+        <div style="font-size:14.5px">{iss.stance.oneLine}</div>
+        <dl>
+          <div><dt>Ratings</dt><dd>{iss.header.ratings}</dd></div>
+          <div><dt>Gross debt</dt><dd>{iss.header.grossDebt}</dd></div>
+          <div><dt>Cash</dt><dd>{iss.header.unrestrictedCash}</dd></div>
+          <div><dt>Next maturity</dt><dd>{iss.header.nextMaturity}</dd></div>
+          <div style="grid-column:1/-1"><dt>Bond prices</dt><dd>{iss.header.bondPrices}</dd></div>
+        </dl>
+      </div>}
+      <div class="kpis">
+        <div class="kpi"><div class="v">{n(data.meta.liveProjects)}</div><div class="l">Live projects</div></div>
+        <div class="kpi"><div class="v">{n(data.meta.liveUnits)}</div><div class="l">Units in them</div></div>
+        <div class="kpi"><div class="v">{m1((data.meta.liveSoldUnits / Math.max(1, data.meta.liveUnits)) * 100, 1)}%</div><div class="l">Sold</div></div>
+        <div class="kpi"><div class="v">{m1(liveContracted / 1000, 1)}</div><div class="l">Contracted, AED bn</div></div>
+        <div class="kpi"><div class={'v ' + (pastDue ? 'down' : '')}>{n(pastDue)}</div><div class="l">Past their filed date</div></div>
+        <div class="kpi"><div class="v">{n(undated)}</div><div class="l">No date filed</div></div>
+        <div class="kpi"><div class="v">{n(data.meta.sales12m)}</div><div class="l">Sales, 12 months</div></div>
+        <div class="kpi"><div class="v">{share12m == null ? '—' : m1(share12m, 2) + '%'}</div><div class="l">Share of Dubai, by value</div></div>
+      </div>
+      <p class="reads"><b>What this shows.</b> The developer's live book as the land registry records it, not as the company presents it: how many towers are under way, how much of them is sold, and what the buyers have contracted to pay. <b>How to read it.</b> Contracted value is sold units times the average registered ticket — it is what buyers owe over the life of the projects, not cash in hand. Towers past their filed completion date matter twice over: the final instalment is the largest one, and a date that has slipped once tends to slip again.</p>
+      {iss && <>
+        <h2 class="sub2">What has to be paid, and from what</h2><p>{iss.view.capacity}</p>
+        <h2 class="sub2">The refinancing record</h2><p>{iss.view.refinancing}</p>
+        <h2 class="sub2">What the documents allow if it cannot</h2><p>{iss.view.restructuring}</p>
+        <div class="two">
+          <div><h3 class="sub">What supports the credit</h3><ul>{iss.strengths.map((s: string) => <li>{s}</li>)}</ul></div>
+          <div><h3 class="sub">What weighs on it</h3><ul>{iss.concerns.map((s: string) => <li>{s}</li>)}</ul></div>
+        </div>
+      </>}
+    </section>
+
+    <!-- ============================= Simulator ============================= -->
+    <section class="pane" data-pane="simulator">
+      <p class="why">The escrow release model. Every input below is the workbook's, value for value; change one and the table recomputes in the browser exactly as the spreadsheet would. Nothing here is a DPI forecast — the base column is the register plus the issuer's own disclosed payment terms.</p>
+      <div class="scnbar">
+        {SCENARIOS.map((s, i) => <button class={'scn' + (i === 0 ? ' on' : '')} data-scn={i}>{s.name}</button>)}
+        <button class="scn reset" data-reset>Reset inputs</button>
+      </div>
+      <div class="inputs">
+        {Object.entries(SCENARIO_NOTES).map(([k, why]) => <label class="inp" title={why}>
+          <span>{why.split('.')[0]}</span>
+          <input type="number" data-k={k} step={['cancel','sell','price','book','hand','ret'].includes(k) ? '1' : '1'} />
+          <em>{['cancel','sell','price','book','hand','ret'].includes(k) ? '%' : k === 'cap' ? 'pts/mo' : 'months'}</em>
+        </label>)}
+      </div>
+      <div class="totals" id="simtot"></div>
+      <div class="scroll"><table id="simtab">
+        <thead><tr><th>Project</th><th>Status</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Certified %</th><th>Filed completion</th><th class="num">Months to go</th><th class="num">Pace %/mo</th><th class="num">Effective value, AED m</th><th class="num">Released to date, AED m</th><th class="num">Further by 28 Feb 27</th><th class="num">Further by 31 Dec 27</th><th class="num">Further by 31 Dec 28</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <p class="reads"><b>What this shows.</b> How much of the money buyers have contracted to pay can actually reach the developer, and when. <b>How to read it.</b> Escrow does not hand over what has been collected: RERA releases collections in step with certified construction progress, less a retention held until a year after completion. So a tower that is 90% sold but 20% built has released very little. "Further by" is additional release after today, which is the number that matters against a bond maturity — a company can be sitting on a large contracted book and still be short of cash on the day.</p>
+    </section>
+
+
+    <!-- ============================= Next quarter ============================= -->
+    <section class="pane" data-pane="forecast">
+      {fc ? <>
+        <p class="why">What the next two quarters of sales look like if nothing new is launched — so the only units that can sell are the ones already in the register and still unsold. Sales through {fc.throughMonth}; part-months are excluded, because a month counted halfway reads as a collapse.</p>
+        <div class="kpis">
+          <div class="kpi"><div class="v">{n(fc.lastTwelveMonths?.units)}</div><div class="l">Units sold, last 12 months</div></div>
+          <div class="kpi"><div class="v">{m1((fc.lastTwelveMonths?.valueAedM ?? 0) / 1000, 1)}</div><div class="l">Value, AED bn, last 12 months</div></div>
+          <div class="kpi"><div class={'v ' + ((fc.issuerForecast?.units.momentumPctPerMonth ?? 0) < 0 ? 'down' : '')}>{fc.issuerForecast ? m1(fc.issuerForecast.units.momentumPctPerMonth, 1) + '%' : '—'}</div><div class="l">Issuer trend, units per month</div></div>
+          <div class="kpi"><div class={'v ' + ((fc.market?.units.momentumPctPerMonth ?? 0) < 0 ? 'down' : '')}>{m1(fc.market?.units.momentumPctPerMonth, 1)}%</div><div class="l">Dubai trend, units per month</div></div>
+          <div class="kpi"><div class="v">{n(live.reduce((a, p) => a + p.unsold, 0))}</div><div class="l">Unsold units already launched</div></div>
+        </div>
+        {fc.issuerForecast ? <>
+          <h3 class="sub">By calendar quarter</h3>
+          <div class="scroll"><table>
+            <thead><tr><th>Quarter</th><th class="num">Months covered</th><th class="num">Units — flat</th><th class="num">Units — trend</th><th class="num">Value AED m — flat</th><th class="num">Value AED m — trend</th></tr></thead>
+            <tbody>{fc.issuerForecast.units.quarters.map((q: any, i: number) => <tr>
+              <td>{q.quarter}{q.months < 3 && <span class="note"> (partial)</span>}</td>
+              <td class="num">{q.months}</td>
+              <td class="num">{n(q.flat)}</td><td class="num">{n(q.momentum)}</td>
+              <td class="num">{n(fc.issuerForecast.valueAedM.quarters[i]?.flat)}</td>
+              <td class="num">{n(fc.issuerForecast.valueAedM.quarters[i]?.momentum)}</td>
+            </tr>)}</tbody>
+          </table></div>
+          <h3 class="sub">Month by month — recorded, then forecast</h3>
+          <div class="scroll"><table>
+            <thead><tr><th>Month</th><th class="num">Units recorded</th><th class="num">Units — flat</th><th class="num">Units — trend</th><th class="num">Value AED m recorded</th><th class="num">Seasonal factor</th></tr></thead>
+            <tbody>
+              {fc.history.slice(-9).map((h: any) => <tr><td>{h.month}</td><td class="num">{n(h.units)}</td><td class="num">—</td><td class="num">—</td><td class="num">{n(h.valueAedM)}</td><td class="num">{m1(fc.seasonalFactors[String(Number(h.month.slice(5, 7)))], 2)}</td></tr>)}
+              {fc.issuerForecast.units.months.map((mo: any) => <tr class="fcast"><td>{mo.month}</td><td class="num">—</td><td class="num">{n(mo.flat)}</td><td class="num">{n(mo.momentum)}</td><td class="num">—</td><td class="num">{m1(fc.seasonalFactors[String(Number(mo.month.slice(5, 7)))], 2)}</td></tr>)}
+            </tbody>
+          </table></div>
+        </> : <p class="note">{fc.why}</p>}
+        <p class="reads"><b>What this shows.</b> Two cases, never one. <b>Flat</b> holds the last three seasonally adjusted months and repeats them; <b>trend</b> continues the slope through the last twelve, damped so that each month carries {m1((fc.issuerForecast?.units.damping ?? 0.85) * 100, 0)}% of the previous month's slope rather than compounding. <b>How to read it.</b> The gap between the two columns is the honest width of the uncertainty, and it is wide because sales are falling steeply. Which end is right depends on whether the decline has found a floor — a judgement we leave to you. The damping matters: undamped, this issuer's own recent slope reaches near zero within a year, which nobody believes. Seasonality in Dubai is real but mild, roughly 0.88 in April to 1.11 in October, so it is a correction to the trend, not the story. Neither case assumes a new launch: every unit sold here is one already in the register and still unsold.</p>
+      </> : <p class="note">No sales forecast published for this issuer yet.</p>}
+    </section>
+
+    <!-- ============================= Handover check ============================= -->
+    <section class="pane" data-pane="handover">
+      <p class="why">Towers that could plausibly have been handed over since the last balance sheet date ({fmtDate(data.meta.balanceSheetDate)}). Handover leaves a fingerprint in the register: units start trading as existing property and mortgages register against them within weeks. Where that fingerprint is absent, a claimed handover is not corroborated.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Project</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Contracted, AED m</th><th class="num">Certified %</th><th>Filed completion</th><th>Status</th><th class="num">Ready sales since</th><th class="num">Mortgages since</th><th>Corroborated</th></tr></thead>
+        <tbody>{data.handover.map(h => <tr>
+          <td>{h.project}</td><td class="num">{n(h.units)}</td><td class="num">{n(h.sold_units)}</td>
+          <td class="num">{m1(h.contracted_aed_m)}</td><td class="num">{m1(h.certified_pct, 1)}</td>
+          <td>{fmtDate(h.registered_completion)}</td><td>{h.status}</td>
+          <td class="num">{n(h.ready_sales_since_bs)}</td><td class="num">{n(h.mortgages_since_bs)}</td>
+          <td>{(h.ready_sales_since_bs + h.mortgages_since_bs) > 0 ? <span class="chip ok">yes</span> : <span class="chip muted">no trace</span>}</td>
+        </tr>)}</tbody>
+      </table></div>
+      {data.meta.completedSinceBalanceSheet?.length > 0 && <>
+        <h3 class="sub">Recorded as completed since the balance sheet date</h3>
+        <div class="scroll"><table><thead><tr><th>Project</th><th>Completed</th><th class="num">Units</th><th class="num">Contracted, AED m</th></tr></thead>
+          <tbody>{data.meta.completedSinceBalanceSheet.map((c: any) => <tr><td>{c.project}</td><td>{fmtDate(c.completed)}</td><td class="num">{n(c.units)}</td><td class="num">{m1(c.contractedAedM)}</td></tr>)}</tbody>
+        </table></div>
+      </>}
+      <p class="reads"><b>What this shows.</b> Whether handovers a company says have happened can be seen in the land registry. <b>How to read it.</b> "No trace" is not proof a handover did not occur — registration lags, and a tower handed over last week would not show yet. It does mean the claim rests on the company's word alone, which for a cash figure feeding a bond coverage calculation is a material difference.</p>
+    </section>
+
+    <!-- ============================= Projects ============================= -->
+    <section class="pane" data-pane="projects">
+      <p class="why">Every project the land registry attributes to this developer — {n(data.projects.length)} of them, {n(live.length)} still live. Sortable; click a column heading.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Project</th><th>Area</th><th>Status</th><th class="num">Certified %</th><th>Filed completion</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Contracted, AED m</th><th class="num">Sales 12m</th><th class="num">Value 12m, AED m</th><th class="num">Sales 90d</th><th class="num">Avg AED/sqm</th><th class="num">Resales at a loss</th><th>Escrow agent</th></tr></thead>
+        <tbody>{data.projects.map(p => <tr>
+          <td>{p.project}</td><td>{p.area}</td>
+          <td>{p.is_live ? p.status.toLowerCase() : <span class="muted">{p.status.toLowerCase()}</span>}</td>
+          <td class="num">{m1(p.certified_pct, 1)}</td><td>{fmtDate(p.registered_completion)}</td>
+          <td class="num">{n(p.units)}</td><td class="num">{n(p.sold_units)}</td><td class="num">{m1(p.contracted_aed_m)}</td>
+          <td class="num">{n(p.sales_12m)}</td><td class="num">{m1(p.value_12m_aed_m)}</td><td class="num">{n(p.sales_90d)}</td>
+          <td class="num">{m1(p.avg_psm_12m)}</td>
+          <td class={'num ' + (p.resales_at_loss ? 'down' : '')}>{n(p.resales_at_loss)}{p.resales_24m ? ` / ${n(p.resales_24m)}` : ''}</td>
+          <td>{p.escrow_agent}</td>
+        </tr>)}</tbody>
+      </table></div>
+      <p class="reads"><b>What this shows.</b> The developer's whole record, delivered and undelivered. <b>How to read it.</b> "Resales at a loss" counts units bought from the developer and resold below the original price within two years — buyers voting on the product with their own money, and the earliest honest signal that a project was priced above what the market will bear.</p>
+    </section>
+
+    <!-- ============================= Debt & bonds ============================= -->
+    <section class="pane" data-pane="debt">
+      {iss ? <>
+        <div class="scroll"><table>
+          <thead><tr><th>Instrument</th><th>ISIN</th><th class="num">Size, USD m</th><th>Issued</th><th>Listing</th><th>Price</th><th>Yield</th></tr></thead>
+          <tbody>{iss.bonds.map((b: any) => <tr><td>{b.name}<div class="note">{b.note}</div></td><td>{b.isin || '—'}</td><td class="num">{n(b.sizeUsdM)}</td><td>{b.issued}</td><td>{b.listing}</td><td>{b.price || '—'}</td><td>{b.ytm || '—'}</td></tr>)}</tbody>
+        </table></div>
+        <h3 class="sub">Maturity wall</h3>
+        <div class="scroll"><table><thead><tr><th>Year</th><th class="num">All debt, USD m</th><th class="num">Of which bonds/sukuk</th></tr></thead>
+          <tbody>{iss.maturityWall.map((w: any) => <tr><td>{w.year}</td><td class="num">{n(w.usdM)}</td><td class="num">{n(w.sukukUsdM)}</td></tr>)}</tbody>
+        </table></div>
+        <p class="reads"><b>What this shows.</b> What has to be repaid and when, against what the escrow model says can be released by then. <b>How to read it.</b> Read this tab beside the Simulator: a maturity is covered if cash on hand plus release before that date exceeds it. Where it does not, the company needs a refinancing, and the bond price in the table above is the market's own answer on whether it can get one.</p>
+      </> : <p class="note">No debt detail on file for this issuer yet.</p>}
+    </section>
+
+    <!-- ============================= Financials ============================= -->
+    <section class="pane" data-pane="financials">
+      {iss ? <>
+        <p class="why">As reported. {iss.latestFinancials}. AED millions.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Line</th>{iss.periods.map((p: any) => <th class="num">{p.label}</th>)}</tr></thead>
+          <tbody>{[['Revenue','revenue'],['Gross profit','grossProfit'],['EBITDA','ebitda'],['Net profit','netProfit'],['Total assets','totalAssets'],['Cash','cash'],['Escrow','escrow'],['Debt','debt'],['Equity','equity'],['Contract liabilities','contractLiabilities'],['Backlog','backlog'],['Cash from operations','cfo'],['Finance cost','financeCost'],['Dividends','dividends']].map(([label, k]) =>
+            <tr><td>{label}</td>{iss.periods.map((p: any) => <td class="num">{m1(p[k as string])}</td>)}</tr>)}</tbody>
+        </table></div>
+        <h3 class="sub">Credit ratios</h3>
+        <div class="scroll"><table><thead><tr><th>Ratio</th><th class="num">FY2025</th><th class="num">H1 2026</th><th>Comment</th></tr></thead>
+          <tbody>{iss.ratios.map((r: any) => <tr><td>{r.label}</td><td class="num">{r.fy2025}</td><td class="num">{r.h1_2026}</td><td class="note">{r.comment}</td></tr>)}</tbody>
+        </table></div>
+        <p class="reads"><b>What this shows.</b> The company's own numbers, unadjusted, next to the ratios the rating agencies and the covenants actually test. <b>How to read it.</b> Compare the trajectory, not the level: a developer's reported profit follows percentage-of-completion accounting and can rise while cash falls. Cash from operations against finance cost is the harder test.</p>
+      </> : <p class="note">No financial detail on file for this issuer yet.</p>}
+    </section>
+
+    <!-- ============================= Ratings & sources ============================= -->
+    <section class="pane" data-pane="sources">
+      {iss && <>
+        <div class="scroll"><table><thead><tr><th>Date</th><th>Agency</th><th>Action</th><th>Why</th></tr></thead>
+          <tbody>{iss.ratingsHistory.map((r: any) => <tr><td>{fmtDate(r.date)}</td><td>{r.agency}</td><td>{r.action}</td><td class="note">{r.why}</td></tr>)}</tbody>
+        </table></div>
+        {iss.sources?.length > 0 && <><h3 class="sub">Sources</h3><ul class="src">{iss.sources.map((s: any) => <li>{typeof s === 'string' ? s : <>{s.what} — {s.url ? <a href={s.url} rel="nofollow noopener" target="_blank">{s.where ?? s.url}</a> : s.where}</>}</li>)}</ul></>}
+        {iss.gaps?.length > 0 && <><h3 class="sub">What we could not establish</h3><ul class="src">{iss.gaps.map((g: string) => <li>{g}</li>)}</ul></>}
+      </>}
+      <h3 class="sub">This page and the workbook</h3>
+      <p>Both read the same three files, published from the land registry at the start of every daily refresh: the project register, the handover watch list, and the as-of dates. Neither queries the database directly. If a figure here and the same figure in the workbook ever disagree, the cause is arithmetic in one of them — never a stale copy of the data.</p>
+      {devSlug && <p><a href={`/developers/${devSlug}/`}>{brand}'s delivery record and pipeline →</a></p>}
+    </section>
+  </div>
+
+  <script is:inline set:html={`(function(){\n${ENGINE_SRC}\n` + `
+      var SIM_ROWS = ${JSON.stringify(simRows)};
+      var AS_OF = ${JSON.stringify(data.meta.registerLastRead)};
+      var PCT = ['cancel', 'sell', 'price', 'book', 'hand', 'ret'];
+      var KEYS = ['delay', 'pastdue', 'undated', 'cancel', 'sell', 'price', 'book', 'hand', 'ret', 'cap'];
+      // Horizons as the workbook counts them: whole months after the as-of month (Simulator row 6).
+      var asOfD = new Date(AS_OF + 'T00:00:00Z');
+      var HOR = [['28 Feb 27', '2027-02-01'], ['31 Dec 27', '2027-12-01'], ['31 Dec 28', '2028-12-01']]
+        .map(function (h) { return { key: h[0], months: monthsBetween(asOfD, new Date(h[1] + 'T00:00:00Z')) }; });
+      var cur = Object.assign({}, SCENARIOS[0]);
+
+      function calc() {
+        var out = [], tot = { eff: 0, todate: 0, h: HOR.map(function () { return 0; }), ret: 0 };
+        SIM_ROWS.forEach(function (r) {
+          var x = projectRow({ units: r.u || 0, sold: r.so || 0, ticket: r.t || 0, cert: r.c || 0,
+            completion: r.d ? new Date(r.d + 'T00:00:00Z') : null, asOf: asOfD, s: cur, horizons: HOR });
+          var hs = HOR.map(function (h) { return x.byHorizon[h.key]; });
+          tot.eff += x.effective; tot.todate += x.releasedToDate; tot.ret += x.contracted * cur.ret;
+          hs.forEach(function (v, i) { tot.h[i] += v; });
+          out.push({ r: r, eff: x.effective, cert: r.c || 0, m: x.months, pace: x.pace, todate: x.releasedToDate, hs: hs });
+        });
+        return { rows: out, tot: tot };
+      }
+
+      var f0 = function (v) { return (v == null || isNaN(v)) ? '—' : Math.round(v).toLocaleString('en-GB'); };
+      var f1 = function (v) { return (v == null || isNaN(v)) ? '—' : v.toFixed(1); };
+      var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+
+      function draw() {
+        var res = calc();
+        var tb = document.querySelector('#simtab tbody');
+        tb.innerHTML = res.rows.map(function (x) {
+          return '<tr><td>' + esc(x.r.p) + '</td><td>' + esc(String(x.r.s).toLowerCase()) + '</td><td class="num">' + f0(x.r.u) +
+            '</td><td class="num">' + f0(x.r.so) + '</td><td class="num">' + f1(x.cert) + '</td><td>' + esc(x.r.d || '—') +
+            '</td><td class="num">' + f0(x.m) + '</td><td class="num">' + f1(x.pace) + '</td><td class="num">' + f0(x.eff) +
+            '</td><td class="num">' + f0(x.todate) + '</td><td class="num">' + f0(x.hs[0]) + '</td><td class="num">' +
+            f0(x.hs[1]) + '</td><td class="num">' + f0(x.hs[2]) + '</td></tr>';
+        }).join('') + '<tr class="tot"><td><b>Total, all live projects</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="num"><b>' +
+          f0(res.tot.eff) + '</b></td><td class="num"><b>' + f0(res.tot.todate) + '</b></td><td class="num"><b>' +
+          f0(res.tot.h[0]) + '</b></td><td class="num"><b>' + f0(res.tot.h[1]) + '</b></td><td class="num"><b>' + f0(res.tot.h[2]) + '</b></td></tr>';
+        document.getElementById('simtot').innerHTML =
+          tile('Effective contracted value', f0(res.tot.eff)) + tile('Released to date', f0(res.tot.todate)) +
+          HOR.map(function (h, i) { return tile('Further release by ' + h.key, f0(res.tot.h[i])); }).join('') +
+          tile('Retention held back', f0(res.tot.ret));
+      }
+      function tile(l, v) { return '<div class="kpi"><div class="v">' + v + '</div><div class="l">' + esc(l) + ', AED m</div></div>'; }
+
+      function fill() {
+        KEYS.forEach(function (k) {
+          var el = document.querySelector('input[data-k="' + k + '"]');
+          if (el) el.value = PCT.indexOf(k) >= 0 ? Math.round(cur[k] * 1000) / 10 : cur[k];
+        });
+      }
+      document.querySelectorAll('input[data-k]').forEach(function (el) {
+        el.addEventListener('input', function () {
+          var k = el.getAttribute('data-k'), v = parseFloat(el.value);
+          if (isNaN(v)) return;
+          cur[k] = PCT.indexOf(k) >= 0 ? v / 100 : v;
+          document.querySelectorAll('.scn[data-scn]').forEach(function (b) { b.classList.remove('on'); });
+          draw();
+        });
+      });
+      document.querySelectorAll('.scn[data-scn]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          document.querySelectorAll('.scn[data-scn]').forEach(function (x) { x.classList.remove('on'); });
+          b.classList.add('on');
+          cur = Object.assign({}, SCENARIOS[+b.getAttribute('data-scn')]);
+          fill(); draw();
+        });
+      });
+      var rs = document.querySelector('[data-reset]');
+      if (rs) rs.addEventListener('click', function () {
+        document.querySelectorAll('.scn[data-scn]').forEach(function (x, i) { x.classList.toggle('on', i === 0); });
+        cur = Object.assign({}, SCENARIOS[0]); fill(); draw();
+      });
+      document.querySelectorAll('.tab').forEach(function (t) {
+        t.addEventListener('click', function () {
+          var k = t.getAttribute('data-tab');
+          document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x === t); });
+          document.querySelectorAll('.pane').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-pane') === k); });
+          history.replaceState(null, '', '#' + k);
+        });
+      });
+      var h = location.hash.replace('#', '');
+      if (h) { var b = document.querySelector('.tab[data-tab="' + h + '"]'); if (b) b.click(); }
+      fill(); draw();
+    })();`} />
+
+  <style is:global>
+    .credit .tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin:18px 0 0}
+    .credit .tab{appearance:none;background:none;border:0;border-bottom:2px solid transparent;font:inherit;font-size:14px;color:var(--ink2);padding:9px 14px;cursor:pointer;border-radius:6px 6px 0 0}
+    .credit .tab:hover{background:var(--wash);color:var(--ink)}
+    .credit .tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+    .credit .pane{display:none;padding-top:18px}
+    .credit .pane.on{display:block}
+    .credit .dlbar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:12px;background:var(--wash);padding:13px 16px;margin:12px 0 0;font-size:13.5px}
+    .credit .dlbar>div{flex:1 1 340px}
+    .credit .dlbtn{display:inline-block;background:var(--accent);color:#fff;font-weight:600;font-size:14px;padding:10px 18px;border-radius:8px;white-space:nowrap}
+    .credit .dlbtn:hover{text-decoration:none;filter:brightness(1.1)}
+    .credit .credithead{border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:12px;background:var(--surface);padding:16px 18px;margin:0 0 16px}
+    .credit .credithead dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px;margin:10px 0 0}
+    .credit .credithead dt{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    .credit .credithead dd{margin:1px 0 0;font-size:13.5px}
+    .credit .kpis,.credit .totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:0 0 14px}
+    .credit .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+    .credit .kpi .v{font-family:var(--serif);font-size:22px;font-weight:650;letter-spacing:-.01em}
+    .credit .kpi .v.down{color:var(--red)}
+    .credit .kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+    .credit .scnbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+    .credit .scn{appearance:none;background:var(--surface);border:1px solid var(--border);border-radius:999px;font:inherit;font-size:13px;padding:7px 14px;cursor:pointer;color:var(--ink2)}
+    .credit .scn:hover{border-color:var(--accent);color:var(--ink)}
+    .credit .scn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+    .credit .scn.reset{margin-left:auto;font-size:12.5px}
+    .credit .inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin:0 0 16px}
+    .credit .inp{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:12.5px;color:var(--ink2)}
+    .credit .inp span{flex:1;line-height:1.3}
+    .credit .inp input{width:62px;font:inherit;font-size:13px;text-align:right;border:1px solid var(--border);border-radius:6px;padding:4px 6px;color:#0000c8;background:var(--page)}
+    .credit .inp em{font-style:normal;font-size:11px;color:var(--muted);width:38px}
+    .credit tr.fcast td{background:rgba(14,92,99,.045);font-style:italic}
+    .credit tr.tot td{background:var(--wash);border-top:2px solid var(--axis)}
+    .credit .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 26px}
+    .credit .two ul,.credit .src{padding-left:18px;font-size:13.5px;line-height:1.6}
+    .credit .sub,.credit .sub2{font-family:var(--serif);font-weight:650;margin:22px 0 6px}
+    .credit .sub{font-size:16px}.credit .sub2{font-size:17px}
+    .credit .muted{color:var(--muted)}
+  </style>
+</Base>

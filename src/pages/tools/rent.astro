@@ -1,0 +1,68 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q3, areaLabel } from '../../lib/db';
+// {area: {label, types: {Flat: {rooms: [avg, n]}}}} — average NEW-contract Ejari rent, last 12 months.
+const table: Record<string, any> = {};
+for (const r of q3.reraTable()) {
+  (table[r.area] ??= { label: areaLabel(r.area), types: {} });
+  (table[r.area].types[r.type] ??= {})[r.rooms] = [r.avg, r.n];
+}
+const areaNames = Object.keys(table).sort((a, b) => table[a].label.localeCompare(table[b].label));
+---
+<Base title="RERA rent increase calculator: how much can your Dubai landlord raise the rent?" crumbs={[{label:'Calculators',href:'/tools/'},{label:'Rent increase cap'}]}>
+  <h1>How much can the rent legally go up at renewal?</h1>
+  <p class="lede">Decree 43 of 2013 caps rent increases based on how far your current rent sits below the average market rent for a similar property. This calculator applies those slabs to the average <b>new-contract Ejari rent</b> in your area for your unit type, computed from the register — real signed contracts, not asking rents.</p>
+
+  <div class="card">
+    <form class="calc" onsubmit="return false" id="rera">
+      <div><label>Area</label><select name="area">{areaNames.map(a => <option value={a}>{table[a].label}</option>)}</select></div>
+      <div><label>Property type</label><select name="type"><option>Flat</option><option>Villa</option></select></div>
+      <div><label>Bedrooms</label><select name="rooms"></select></div>
+      <div><label>Your current annual rent (AED)</label><input name="rent" type="number" value="100000" step="1000" /></div>
+    </form>
+    <div class="out" data-out>—</div>
+    <p class="note">The slabs: rent up to 10% below the market average → no increase allowed. 11–20% below → up to 5%. 21–30% below → up to 10%. 31–40% below → up to 15%. More than 40% below → up to 20%. A landlord must give 90 days' notice before renewal to apply any increase.</p>
+  </div>
+
+  <h2>What this is and is not</h2>
+  <p class="note" style="max-width:820px">The official reference is the RERA Rental Index calculator on the Dubai Land Department site and app, which uses RERA's own index values — that is what a rental dispute committee will look at. The number here is our independent computation of the market average from registered Ejari contracts (new contracts only, last 12 months), which is often more current than the index. If the two disagree materially, the official index governs. Averages blend buildings of different quality within an area, so treat the answer as a strong indication, not a ruling. This is not legal advice.</p>
+</Base>
+<script is:inline define:vars={{ table }}>
+(() => {
+  const f = document.getElementById('rera'), out = document.querySelector('[data-out]');
+  const aed = n => 'AED ' + Math.round(n).toLocaleString('en-US');
+  const ORDER = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R', '6 B/R', '7 B/R'];
+  const slab = below => below <= 10 ? 0 : below <= 20 ? 5 : below <= 30 ? 10 : below <= 40 ? 15 : 20;
+  function fillTypes() {
+    const t = table[f.area.value]?.types ?? {};
+    const cur = f.type.value;
+    if (!t[cur]) f.type.value = Object.keys(t)[0] ?? 'Flat';
+  }
+  function fillRooms() {
+    fillTypes();
+    const rooms = table[f.area.value]?.types[f.type.value] ?? {};
+    const keys = Object.keys(rooms).sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0)));
+    const prev = f.rooms.value;
+    f.rooms.innerHTML = keys.map(k => `<option${k === prev ? ' selected' : ''}>${k}</option>`).join('');
+  }
+  function calc() {
+    const entry = table[f.area.value]?.types[f.type.value]?.[f.rooms.value];
+    const rent = +f.rent.value;
+    if (!entry || !rent) { out.innerHTML = 'No Ejari average for this combination (fewer than 20 new contracts registered in 12 months). Try the nearest similar area, or the official RERA index.'; return; }
+    const [avg, n] = entry;
+    const below = (avg - rent) / avg * 100;
+    if (below <= 0) {
+      out.innerHTML = `Market average: <b>${aed(avg)}</b> (${n.toLocaleString()} new contracts, 12m).<br>Your rent is <b>${Math.abs(below).toFixed(1)}% above</b> the average — <b>no increase is permitted</b>. If anything, you have grounds to negotiate down at renewal.`;
+      return;
+    }
+    const s = slab(below);
+    const cap = rent * (1 + s / 100);
+    out.innerHTML = `Market average: <b>${aed(avg)}</b> (${n.toLocaleString()} new contracts, 12m). Your rent is <b>${below.toFixed(1)}% below</b> average.<br>Maximum permitted increase: <b>${s}%</b> → new rent capped at <b>${aed(cap)}</b>${s === 0 ? ' (no increase allowed)' : ` (+${aed(cap - rent)}/yr)`}.<br>The landlord must have given 90 days' notice before the renewal date.`;
+  }
+  f.area.addEventListener('change', () => { fillRooms(); calc(); });
+  f.type.addEventListener('change', () => { fillRooms(); calc(); });
+  f.rooms.addEventListener('change', calc);
+  f.rent.addEventListener('input', calc);
+  fillRooms(); calc();
+})();
+</script>

@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q4, areasWithStats, signClass, yoy, areaLabel } from '../../lib/db';
+import { sparkline } from '../../lib/charts';
+const sparks = q4.sparkAreas();
+const areas = areasWithStats().filter(a => (a.tx12m ?? 0) > 0).sort((x, y) => (y.tx12m ?? 0) - (x.tx12m ?? 0));
+---
+<Base title="Dubai areas: recorded sale prices, volumes and trends for every district" crumbs={[{label:'Buy'}]}>
+  <h1>Every area, at recorded prices</h1>
+  <p class="lede">Pick an area to see what actually sold there, project by project, at prices from the land registry. Common names come first; the official register name follows where it differs. Click any column to sort, or type to filter.</p>
+  <div class="scroll"><table><tr><th>Area</th><th>12m trend</th><th class="num">Projects</th><th class="num">Sales (12m)</th><th class="num">AED bn</th><th class="num"><span class="help" title="Share of the last 12 months' sales that were off-plan (bought before completion)">Off-plan</span></th><th class="num"><span class="help" title="Average recorded price per square metre for apartments, last 90 days. Shown when at least 30 sales exist.">AED/sqm</span></th><th class="num"><span class="help" title="Last 90 days vs the same 90 days a year earlier, apartments only">YoY</span></th></tr>
+  {areas.map(a => <tr><td><a href={`/dubai/${a.slug}/`}>{areaLabel(a.name)}</a></td><td><Fragment set:html={sparkline(sparks.get(a.name) ?? [])} /></td><td class="num">{a.projects}</td><td class="num">{a.tx12m?.toLocaleString() ?? '—'}</td><td class="num">{a.valueBn ?? '—'}</td><td class="num">{a.offplanPct != null ? a.offplanPct + '%' : '—'}</td><td class="num">{a.n90 >= 30 ? a.psm90?.toLocaleString() : '—'}</td><td class={'num ' + signClass((a.psm90 ?? 0) - (a.psmLy ?? 0) + 0.001)}>{yoy(a.psm90, a.psmLy, a.n90, a.nLy)}</td></tr>)}
+  </table></div>
+  <p class="note">The little trend line is the monthly average apartment price per sqm over the last 12 months (green dot: ended higher than it started; red: lower). Hover any dotted-underline header for what the number means.</p>
+</Base>

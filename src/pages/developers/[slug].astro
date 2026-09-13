@@ -1,0 +1,239 @@
+---
+import Base from '../../layouts/Base.astro';
+import { q, areaLabel, statusLabel } from '../../lib/db';
+import { developerProfile, groupOf, issuer as loadIssuer } from '../../lib/developers';
+import { groupedBars, barStrip, columns, hBars } from '../../lib/charts';
+import { n, signed, fmtDate, fmtDay } from '../../lib/reports';
+import fs from 'node:fs';
+import path from 'node:path';
+// The downloadable credit model, rebuilt from the register at the end of every daily refresh.
+// The manifest is written by scripts/credit-workbooks.sh; absent it, the download simply does not appear.
+const MODELS = (() => { const f = path.resolve(process.cwd(), 'public/downloads/credit/manifest.json');
+  return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {}; })();
+export function getStaticPaths() { return q.developers().map(d => ({ params: { slug: d.slug } })); }
+const d = q.developer(Astro.params.slug!);
+const group = groupOf(d.developer_number);
+const allDevs = q.developers();
+const members = group ? group.members.map(dn => allDevs.find(x => x.developer_number === dn)).filter(Boolean) : [d];
+const name = group ? group.name : d.name_en;
+const P = developerProfile(group ? group.members : [d.developer_number]);
+const iss = group?.issuer ? loadIssuer(group.issuer) : null;
+const model = group?.issuer ? MODELS[group.issuer] ?? null : null;
+const thisYear = new Date().getFullYear();
+const nowMonth = new Date().toISOString().slice(0, 7);
+const SL = (s?: string | null) => statusLabel(s);
+const chip = (r: any) => r.finished ? 'ok' : r.cancelled ? 'bad' : r.pastDue ? 'bad' : r.status === 'ACTIVE' ? 'warn' : 'muted';
+const chipText = (r: any) => r.finished ? 'Delivered' : r.cancelled ? 'Cancelled' : r.pastDue ? 'Past due' : r.status === 'ACTIVE' ? `${r.pct == null ? '—' : Math.round(r.pct) + '%'} built` : SL(r.status);
+const aSlug = (a: string) => a.toLowerCase().replace(/ /g, '-').replace(/'/g, '-').replace(/\./g, '-').replace(/--/g, '-');
+const R = P?.record;
+const yrs = P ? P.byYear.filter(y => +y.year >= thisYear - 6 && +y.year <= thisYear + 3) : [];
+const pvr = P ? groupedBars(yrs.map(y => ({ m: y.year, a: y.plannedUnits, b: y.deliveredUnits })), ['units promised for the year', 'units actually delivered'], { title: 'Planned versus delivered units by year' }) : '';
+const salesBars = P ? barStrip(P.sales.monthly.filter(m => m.m < nowMonth).map(m => ({ m: m.m, n: m.n })), 'sales') : '';
+const areaBars = P ? hBars(P.areas.slice(0, 10).map(a => ({ label: a.area, v: a.units, note: `${a.projects} projects, ${a.live} live` })), {}) : '';
+const wall = iss ? columns(iss.maturityWall.map((w: any) => ({ label: w.year, n: w.usdM }))) : '';
+const dueThisYear = P ? P.building.filter(r => r.current && r.current.slice(0, 4) === String(thisYear)) : [];
+const dueLater = P ? P.building.filter(r => r.current && +r.current.slice(0, 4) > thisYear) : [];
+const undated = P ? P.building.filter(r => !r.current) : [];
+const past = P ? P.building.filter(r => r.pastDue) : [];
+const groupsDue: [string, any[]][] = [[`Due in ${thisYear} or earlier`, [...past.filter(r => r.current && r.current.slice(0, 4) !== String(thisYear)), ...dueThisYear]], [`Due ${thisYear + 1} onwards`, dueLater], ['No completion date registered', undated]];
+const units = (rows: any[]) => rows.reduce((s, r) => s + (r.units ?? 0), 0);
+let no = 0; const next = () => ++no;
+const read: string[] = [];
+if (P && R) {
+  read.push(`${name} has ${n(P.totals.projects)} projects on the Dubai register with ${n(P.totals.units)} units: ${n(R.delivered)} delivered (${n(R.deliveredUnits)} units), ${n(R.building)} under construction (${n(R.buildingUnits)} units) and ${n(R.pipeline)} registered but not started.`);
+  if (R.pastDue) read.push(`${n(R.pastDue)} of the ${n(R.building)} active projects — ${n(R.pastDueUnits)} units — are past the completion date the register carries for them; ${past.filter(r => (r.pct ?? 0) >= 90).length} of those read 90% or more certified and are probably awaiting final certificates, while ${past.filter(r => (r.pct ?? 0) < 50).length} are under half built.`);
+  else read.push(`No active project is past its registered completion date.`);
+  read.push(`${n(dueThisYear.length)} projects (${n(units(dueThisYear))} units) carry a ${thisYear} completion date and ${n(dueLater.length)} are dated ${thisYear + 1} or later${undated.length ? `; ${undated.length} active projects have no date` : ''}.`);
+  read.push(`Buyers registered ${n(P.sales.n12)} sales in the last twelve months worth AED ${P.sales.bn12} bn — ${P.sales.sharePct}% of all Dubai sales, ${P.sales.off12Pct}% of them off-plan${P.sales.nPrev ? `, against ${n(P.sales.nPrev)} the year before` : ''}${P.sales.medPsm12 && P.sales.medPsmPrev ? `; the median apartment price in its projects moved from AED ${n(P.sales.medPsmPrev)} to AED ${n(P.sales.medPsm12)} per sqm` : ''}.`);
+  if (P.resales.n >= 20) read.push(`${n(P.resales.n)} homes in its projects were resold in the last two years at a median gain of ${signed(P.resales.medianGain, 1)}% after a median hold of ${P.resales.medianHoldMonths} months; ${P.resales.lossPct}% were sold below the price the seller paid.`);
+  if (iss) read.push(`As a bond issuer it is rated ${iss.header.ratings.split('·')[0].trim()}. ${iss.stance.oneLine}`);
+}
+const title = iss ? `${name} — delivery record, pipeline and credit view` : `${name} — delivery record and pipeline`;
+---
+<Base title={title} description={`${name}: every project on the Dubai Land Department register — delivered, under construction and planned — with planned-versus-actual completion, sales, buyers' resale outcomes${iss ? ', and a fixed-income analysis of its bonds' : ''}.`} crumbs={[{ label: 'Developers', href: '/developers/' }, { label: name }]}>
+  <style is:global>
+    .dev .stance{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font-weight:600;font-size:13px}
+    .dev .stance.muted{background:var(--wash);color:var(--ink2)}.dev .stance.bad{background:var(--wash);color:var(--ink2)}.dev .stance.warn{background:var(--wash);color:var(--ink2)}.dev .stance.ok{background:rgba(14,123,82,.12);color:var(--green)}
+    .dev .credithead{border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:12px;background:var(--surface);padding:16px 18px;margin:14px 0}
+    .dev .credithead dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px;margin:10px 0 0}
+    .dev .dlbox{display:flex;gap:18px;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:12px;background:var(--wash);padding:16px 18px;margin:14px 0}
+    .dev .dlbox>div{flex:1 1 340px}
+    .dev .dlbtn{display:inline-block;background:var(--accent);color:#fff;font-weight:600;font-size:14px;padding:11px 20px;border-radius:8px;white-space:nowrap}
+    .dev .dlbtn:hover{text-decoration:none;filter:brightness(1.1)}
+    .dev .credithead dt{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.dev .credithead dd{margin:1px 0 0;font-size:13.5px}
+    .dev .view p{font-size:15px;line-height:1.65;max-width:820px}
+    .dev .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:800px){.dev .two{grid-template-columns:1fr}}
+    .dev ul.plain{padding-left:18px;font-size:14px;line-height:1.55}.dev ul.plain li{margin:0 0 6px}
+    .dev .disclaimer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--grid);padding-top:10px;margin-top:16px;line-height:1.55}
+    .dev h3.sub{margin:18px 0 6px;font-family:var(--serif);font-weight:600;color:var(--red);font-size:17px}
+  </style>
+  <div class="dev">
+  <div class="hero">
+    <h1>{name}</h1>
+    <p class="lede">{members.length > 1 ? <>Registered with the DLD as {members.length} entities: {members.map((m: any, i: number) => <>{i > 0 && ', '}{m.name_en} (no. {m.developer_number})</>)}. </> : <>DLD developer no. {d.developer_number}. </>}{P ? <>{n(P.totals.projects)} projects on the register, {n(P.totals.units)} units.</> : 'No projects on the register.'}</p>
+    {iss && <div style="margin:6px 0 10px"><a href="#credit" class="stance muted">Bond issuer — the credit in full ↓</a> <span class="note">{iss.header.ratings}</span></div>}
+  </div>
+  {P && R && <>
+  <dl class="facts">
+    <div><dt>Delivered</dt><dd>{n(R.delivered)} projects · {n(R.deliveredUnits)} units</dd></div>
+    <div><dt>Under construction</dt><dd>{n(R.building)} projects · {n(R.buildingUnits)} units</dd></div>
+    <div><dt>Past registered date</dt><dd class={R.pastDue ? 'down' : ''}>{n(R.pastDue)} projects · {n(R.pastDueUnits)} units</dd></div>
+    <div><dt>Not started</dt><dd>{n(R.pipeline)} projects · {n(R.pipelineUnits)} units</dd></div>
+    <div><dt>Sales, 12 months</dt><dd>{n(P.sales.n12)} · AED {P.sales.bn12} bn · {P.sales.sharePct}% of Dubai</dd></div>
+    <div><dt>Register readings</dt><dd>{P.totals.readingDates.map(fmtDay).join(', ')}</dd></div>
+  </dl>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>The read</h2>
+    <div class="verdict muted"><div>{read.map(s => <span>{s} </span>)}</div></div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Delivery record: planned against reality</h2>
+    <p class="why">"Planned" is the earliest completion date the register has carried for a project in our readings; "reality" is its latest status and date. The register lags the site: a finished building can read "active" until its certificate is issued.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Delivered</div><div class="v">{n(R.delivered)}</div><div class="d">{n(R.deliveredUnits)} units</div></div>
+      <div class="kpi"><div class="k">Delivered late</div><div class="v">{R.withDates ? `${n(R.late)} of ${n(R.withDates)}` : '—'}</div><div class="d">{R.medianLateMonths ? `median ${R.medianLateMonths} months late` : 'where both dates are known'}</div></div>
+      <div class="kpi"><div class="k">Past due now</div><div class="v">{n(R.pastDue)}</div><div class="d">active projects · {n(R.pastDueUnits)} units</div></div>
+      <div class="kpi"><div class="k">Dates moved</div><div class="v">{n(R.slipped)}</div><div class="d">{R.medianSlipMonths ? `median ${R.medianSlipMonths} months later` : 'between our readings'}</div></div>
+      <div class="kpi"><div class="k">Cancelled</div><div class="v">{n(R.cancelled)}</div><div class="d">projects</div></div>
+    </div>
+    <p class="reads"><b>What this shows.</b> How the developer's promises have compared with its deliveries. <b>How to read it.</b> "Past due now" is the hard number: active projects whose registered completion date has passed. "Delivered late" is understated for the moment — our first register reading is from June 2026, so a project finished before then shows only its final date, not the date first promised; from here on every date change is recorded and the record accrues.</p>
+    {pvr && <div class="panel"><p class="ttl">Units promised for each year against units delivered in it</p><Fragment set:html={pvr} /><p class="reads"><b>What this shows.</b> For each year, the light bar is the units the register said would complete in that year (by the earliest date we hold), the dark bar is the units in projects that actually finished in it. <b>How to read it.</b> A light bar much taller than the dark bar for a past year is delivery that slipped; for the current and coming years it is the handover load — compare it with what the developer has ever delivered in a single year.</p></div>}
+    <div class="scroll"><table><tr><th>Year</th><th class="num">Projects promised</th><th class="num">Units promised</th><th class="num">Projects delivered</th><th class="num">Units delivered</th><th class="num">Still open, date moved to a later year</th><th class="num">Past due units</th></tr>
+      {yrs.map(y => <tr><td>{y.year}{+y.year === thisYear ? ' (this year)' : ''}</td><td class="num">{n(y.plannedProjects)}</td><td class="num">{n(y.plannedUnits)}</td><td class="num bold">{n(y.deliveredProjects)}</td><td class="num bold">{n(y.deliveredUnits)}</td><td class={'num ' + (y.movedUnits ? 'down' : '')}>{y.movedProjects ? `${n(y.movedProjects)} · ${n(y.movedUnits)} units` : '—'}</td><td class={'num ' + (y.pastDueUnits ? 'down' : '')}>{y.pastDueUnits ? n(y.pastDueUnits) : '—'}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> The same comparison as a table, with the projects promised for a year that are still open. <b>How to read it.</b> "Date moved" counts projects whose registered completion year has changed since we first saw it; "past due" counts units in projects whose date has passed while still active.</p>
+    {R.worstLate.length > 0 && <p class="note">Deliveries that ran past an earlier registered date: {R.worstLate.map((r: any, i: number) => <>{i > 0 && ' · '}<a href={r.url}>{r.name}</a> +{r.lateMonths} months</>)}.</p>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>What is due from {thisYear}: every active project</h2>
+    <p class="why">Under construction now, ordered by the date the register expects. Certified progress is the government inspector's figure; "sold" is registered sales as a share of registered units.</p>
+    {groupsDue.map(([label, rows]) => rows.length > 0 && <>
+      <h3 class="sub">{label} — {rows.length} projects, {n(units(rows))} units</h3>
+      <div class="scroll"><table><tr><th>Project</th><th>Area</th><th class="num">Certified</th><th>Registered completion</th><th>Status</th><th class="num">Units</th><th class="num">Sold</th><th class="num">Sales 12m</th><th class="num">AED/sqm 90d</th></tr>
+        {rows.map((r: any) => <tr><td><a href={r.url}>{r.name}</a></td><td>{areaLabel(r.area).split(' · ')[0]}</td><td class="num bold">{r.pct == null ? '—' : `${Math.round(r.pct)}%`}</td><td class={r.pastDue ? 'down' : ''}>{r.current ?? '—'}{r.slipMonths > 0.5 ? ` (+${r.slipMonths} mo)` : ''}</td><td><span class={'chip ' + chip(r)}>{chipText(r)}</span></td><td class="num">{n(r.units)}</td><td class="num">{r.soldPct == null ? '—' : `${r.soldPct}%`}</td><td class="num">{n(r.sales12m)}</td><td class="num">{r.psm90n >= 5 ? n(r.psm90) : '—'}</td></tr>)}
+      </table></div>
+    </>)}
+    <p class="reads"><b>What this shows.</b> The developer's live obligations to buyers, grouped by when the register says they fall due. <b>How to read it.</b> Set certified progress against the date: 30% built with a date already passed is a project that will not hand over this year whatever the marketing says; 95% with a date last quarter is paperwork. A high "sold" figure means buyer money is in escrow and the developer has every incentive to finish; a low one means it is still funding construction from launches elsewhere.</p>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>What has been delivered</h2>
+    <p class="why">Projects the register marks finished, most recent first, with the resale market in each.</p>
+    <div class="scroll"><table><tr><th>Project</th><th>Area</th><th>Completed</th><th class="num">Later than an earlier registered date</th><th class="num">Units</th><th class="num">Resales 12m</th><th class="num">AED/sqm 90d</th></tr>
+      {P.delivered.map((r: any) => <tr><td><a href={r.url}>{r.name}</a></td><td>{areaLabel(r.area).split(' · ')[0]}</td><td>{r.current ?? '—'}</td><td class={'num ' + (r.lateMonths ? 'down' : '')}>{r.lateMonths ? `+${r.lateMonths} mo` : '—'}</td><td class="num">{n(r.units)}</td><td class="num">{n(r.sales12m)}</td><td class="num">{r.psm90n >= 5 ? n(r.psm90) : '—'}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> The delivered stock and how it trades. <b>How to read it.</b> Resales in a completed building are the truest test of a developer: a building that keeps trading at or above its launch price per square metre has held its value; one with no resales two years after handover is illiquid. Open a project for its own price history and comparables.</p>
+  </section>
+
+  {P.pipeline.length > 0 && <section class="qs">
+    <h2><span class="no">{next()}</span>Registered but not started</h2>
+    <div class="scroll"><table><tr><th>Project</th><th>Area</th><th>Status</th><th>Registered completion</th><th class="num">Units</th><th class="num">Sales to date</th></tr>
+      {P.pipeline.map((r: any) => <tr><td><a href={r.url}>{r.name}</a></td><td>{areaLabel(r.area).split(' · ')[0]}</td><td>{SL(r.status)}</td><td>{r.current ?? '—'}</td><td class="num">{n(r.units)}</td><td class="num">{n(r.salesAll)}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> Projects the developer has registered and may be selling, where construction has not been certified as started. <b>How to read it.</b> Sales here are the earliest, cheapest and riskiest off-plan money; a long list with dates far out is a land bank being monetised ahead of construction.</p>
+  </section>}
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Sales momentum and buyers' outcomes</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Sales, 12 months</div><div class="v">{n(P.sales.n12)}</div><div class="d">{P.sales.nPrev ? `${signed(100 * (P.sales.n12 / P.sales.nPrev - 1), 0)}% vs prior 12 months` : ''}</div></div>
+      <div class="kpi"><div class="k">Value</div><div class="v">AED {P.sales.bn12} bn</div><div class="d">{P.sales.off12Pct}% off-plan</div></div>
+      <div class="kpi"><div class="k">Share of Dubai sales</div><div class="v">{P.sales.sharePct ?? '—'}%</div><div class="d">by count, 12 months</div></div>
+      <div class="kpi"><div class="k">Median AED/sqm, apartments</div><div class="v">{n(P.sales.medPsm12)}</div><div class="d">{P.sales.medPsmPrev && P.sales.medPsm12 ? `${signed(100 * (P.sales.medPsm12 / P.sales.medPsmPrev - 1), 1)}% vs prior 12 months` : ''}</div></div>
+      <div class="kpi"><div class="k">Resales, 24 months</div><div class="v">{n(P.resales.n)}</div><div class="d">{P.resales.n ? `median ${signed(P.resales.medianGain, 1)}% · ${P.resales.lossPct}% at a loss` : ''}</div></div>
+    </div>
+    {salesBars && <div class="panel"><p class="ttl">Registered sales in {name} projects, by month</p><Fragment set:html={salesBars} /><p class="reads"><b>What this shows.</b> Every registered sale in the developer's projects, month by month, launches and resales together. <b>How to read it.</b> Spikes are launches being registered in bulk; the level between spikes is the resale and steady-state demand. A developer whose sales are all spikes depends on the next launch.</p></div>}
+    <p class="reads"><b>What this shows.</b> Market share, price direction and what buyers actually realised on resale in this developer's buildings. <b>How to read it.</b> The resale tiles are the honest measure of whether buying from this developer has paid: matched pairs of the same home sold twice, gain before costs, share sold at a loss. A high loss share with a short hold is off-plan buyers exiting at or below the price they paid.</p>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>Where it builds</h2>
+    <div class="two">
+      <div class="panel"><p class="ttl">Registered units by area</p><Fragment set:html={areaBars} /></div>
+      <div class="scroll"><table><tr><th>Area</th><th class="num">Projects</th><th class="num">Live</th><th class="num">Units</th></tr>{P.areas.map((a: any) => <tr><td><a href={`/dubai/${aSlug(a.area)}/`}>{areaLabel(a.area).split(' · ')[0]}</a></td><td class="num">{n(a.projects)}</td><td class="num">{n(a.live)}</td><td class="num bold">{n(a.units)}</td></tr>)}</table></div>
+    </div>
+    <p class="reads"><b>What this shows.</b> The developer's geographic concentration. <b>How to read it.</b> Set this against the area pages: a developer with most of its live units in one area is exposed to that area's pipeline and absorption, and so are its buyers.</p>
+  </section>
+  </>}
+
+  {iss && <section class="qs" id="credit">
+    <h2><span class="no">{next()}</span>Financial soundness: a fixed-income view of {iss.brand}</h2>
+    <p class="why">{iss.legalName}. Latest accounts: {iss.latestFinancials}. The record from the accounts, the offering circulars and the rating agencies, with the land registry alongside it. We publish the evidence, not a credit opinion of our own.</p>
+    <div class="credithead">
+      <div style="font-size:14.5px">{iss.stance.oneLine}</div>
+      <dl>
+        <div><dt>Ratings</dt><dd>{iss.header.ratings}</dd></div>
+        <div><dt>Gross debt</dt><dd>{iss.header.grossDebt}</dd></div>
+        <div><dt>Cash</dt><dd>{iss.header.unrestrictedCash}</dd></div>
+        <div><dt>Next maturity</dt><dd>{iss.header.nextMaturity}</dd></div>
+        <div style="grid-column:1/-1"><dt>Bond prices</dt><dd>{iss.header.bondPrices}</dd></div>
+      </dl>
+    </div>
+    <p class="reads"><b>What this shows.</b> The credit in one block: what the agencies say, what the debt is, what cash is really free, when the next bond falls due, and where the bonds trade. <b>How to read it.</b> A bond price far below 100 with a yield well above its coupon is the market saying the company cannot refinance at the old rate; a price near 100 says it can. "Cash outside escrow" is the only cash a developer can use to repay bonds — escrow belongs to the projects.</p>
+
+    {model && <div class="dlbox">
+      <div>
+        <h3 class="sub" style="margin-top:0">Download the credit model</h3>
+        <p style="margin:4px 0 0">The full working model behind this page — escrow waterfall, project-by-project collections, a certified-progress simulator, the cash-flow bridge to each maturity and a break-even on what has to be sold. Rebuilt from the land registry every day, so the copy you download already carries the latest figures. Nothing to refresh, nothing to connect.{model.derived && ' ' + 'Cut from our canonical model, so the calculations match the other issuers exactly. The bank-debt maturity split, the 12-month debt disclosure and the covenant thresholds are left blank rather than assumed — they are marked in the workbook.'}</p>
+        <p class="note" style="margin:8px 0 0">Register read {fmtDate(model.registerLastRead)} · transactions to {fmtDate(model.transactionsLastRead)} · {n(model.liveProjects)} live projects, AED {n(Math.round(model.liveContractedAedM / 1000 * 10) / 10)} bn contracted · built {fmtDate(model.built)} · {(model.bytes / 1048576).toFixed(1)} MB Excel</p>
+      </div>
+      <a class="dlbtn" href={model.href} download>Download .xlsx</a>
+    </div>}
+
+    <div class="view">
+      <h3 class="sub">Can it pay?</h3><p>{iss.view.capacity}</p>
+      <h3 class="sub">Can it refinance?</h3><p>{iss.view.refinancing}</p>
+      <h3 class="sub">Could it need to reschedule or restructure?</h3><p>{iss.view.restructuring}</p>
+      <h3 class="sub">What this means if you are buying a home from them</h3><p>{iss.view.forBuyers}</p>
+    </div>
+
+    <h3 class="sub" style="margin-top:22px">The accounts, AED million</h3>
+    <div class="scroll"><table><tr><th>Period</th><th class="num">Revenue</th><th class="num">Gross profit</th><th class="num">EBITDA</th><th class="num">Net profit</th><th class="num">Cash & bank</th><th class="num">of which escrow</th><th class="num">Debt</th><th class="num">Equity</th><th class="num">Customer advances</th><th class="num">Backlog</th><th class="num">Presales</th><th class="num">Cash from operations</th><th class="num">Dividends</th></tr>
+      {iss.periods.map((p: any) => <tr><td>{p.label}{p.note ? <span class="help" title={p.note}> *</span> : null}</td><td class="num">{n(p.revenue)}</td><td class="num">{n(p.grossProfit)}</td><td class="num bold">{n(p.ebitda)}</td><td class="num">{n(p.netProfit)}</td><td class="num">{n(p.cash)}</td><td class="num">{n(p.escrow)}</td><td class="num bold">{n(p.debt)}</td><td class="num">{n(p.equity)}</td><td class="num">{n(p.contractLiabilities)}</td><td class="num">{n(p.backlog)}</td><td class="num">{n(p.sales)}</td><td class={'num ' + ((p.cfo ?? 0) < 0 ? 'down' : '')}>{n(p.cfo)}</td><td class="num">{n(p.dividends)}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> The last two full years and the latest half-year from the audited and reviewed accounts. <b>How to read it.</b> Follow three lines: debt (is it growing faster than EBITDA?), cash from operations (is the business generating cash or consuming it?), and escrow as a share of cash (how much of the "cash" is customers' money). Presales and backlog are what the company has already sold and not yet recognised — the future revenue that services the debt. Rows marked * carry a note; hover to read it.</p>
+
+    <h3 class="sub" style="margin-top:22px">Credit ratios</h3>
+    <div class="scroll"><table><tr><th>Ratio</th><th class="num">FY2025</th><th class="num">H1 2026 / LTM</th><th>Read</th></tr>
+      {iss.ratios.map((r: any) => <tr><td>{r.label}</td><td class="num">{r.fy2025}</td><td class="num bold">{r.h1_2026}</td><td class="note">{r.comment}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> The ratios a bond analyst runs, computed from the accounts (not the company's own presentation, which typically counts releasable escrow as cash). <b>How to read it.</b> Debt/EBITDA under 2x is comfortable for a developer, 3–4x is stretched, above 5x is where restructurings start. Interest cover below 2x means half the profit goes to lenders. Cash outside escrow against debt due within twelve months is the liquidity test: below 1x the company needs handovers or new money to pay what is due.</p>
+
+    <h3 class="sub" style="margin-top:22px">The bonds and other debt</h3>
+    <div class="scroll"><table><tr><th>Instrument</th><th>ISIN</th><th class="num">Size (USD m)</th><th>Issued</th><th>Listing</th><th class="num">Price bid / ask</th><th class="num">Yield</th><th>Notes</th></tr>
+      {iss.bonds.map((b: any) => <tr><td>{b.name}</td><td class="note">{b.isin || '—'}</td><td class="num">{n(b.sizeUsdM)}</td><td>{b.issued}</td><td>{b.listing}</td><td class="num">{b.price || '—'}</td><td class="num">{b.ytm || '—'}</td><td class="note">{b.note}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> Every bond and the bank layer beneath it, with indicative bank quotes (not traded prices). <b>How to read it.</b> Sukuk are senior unsecured: bank debt secured on land ranks ahead of them in a default, so the larger the secured layer, the less bondholders would recover. The yield column is what a new bond would have to pay today.</p>
+
+    <div class="two">
+      <div class="panel"><p class="ttl">Debt maturing by year, USD million</p><Fragment set:html={wall} /><p class="reads"><b>What this shows.</b> When the debt has to be repaid or refinanced. <b>How to read it.</b> A wall of maturities in one year is the point of maximum dependence on markets being open; compare each year's bar with the company's free cash and the escrow it expects to release from handovers that year.</p></div>
+      <div class="scroll"><table><tr><th>Date</th><th>Agency</th><th>Action</th><th>Why</th></tr>{iss.ratingsHistory.map((r: any) => <tr><td style="white-space:nowrap">{r.date}</td><td>{r.agency}</td><td class="bold">{r.action}</td><td class="note">{r.why}</td></tr>)}</table></div>
+    </div>
+    <p class="reads"><b>What this shows.</b> The rating agencies' recent actions. <b>How to read it.</b> "Review for downgrade" and "Rating Watch Negative" mean a decision is pending within months; "outlook negative" is a slower signal. Each notch down raises the cost of the next bond and narrows who is allowed to buy it.</p>
+
+    <div class="two">
+      <div><h3 class="sub" style="color:var(--green)">Strengths</h3><ul class="plain">{iss.strengths.map((s: string) => <li>{s}</li>)}</ul></div>
+      <div><h3 class="sub">Concerns</h3><ul class="plain">{iss.concerns.map((s: string) => <li>{s}</li>)}</ul></div>
+    </div>
+
+    <details style="margin-top:14px"><summary class="note" style="cursor:pointer">Sources ({iss.sources.length}) and what we could not verify ({iss.gaps.length})</summary>
+      <ul class="plain" style="margin-top:8px">{iss.sources.map((s: any) => <li><a href={s.url} rel="noopener">{s.title}</a> <span class="note">({s.date})</span></li>)}</ul>
+      <p class="note" style="margin-top:8px"><b>Not verified:</b></p><ul class="plain">{iss.gaps.map((g: string) => <li class="note">{g}</li>)}</ul>
+    </details>
+    <p class="disclaimer">Prepared {fmtDate(iss.asOf)} from public filings, rating-agency publications and bank indicative price sheets listed above; figures in AED million unless stated. Ratios described as computed are ours and may differ from the company's or the agencies' definitions. This is general information about a developer's published finances for buyers and investors. It is not a recommendation to buy, sell or hold any security and is not financial advice; bond prices are indicative and change daily.</p>
+  </section>}
+
+  <section class="qs">
+    <h2><span class="no">{next()}</span>What this page cannot tell you</h2>
+    <ul class="cannot">
+      <li><b>The register is the DLD's, not the developer's.</b> Units, dates and status are what was filed; a developer's own delivery count often includes phases registered under other numbers or outside Dubai.</li>
+      <li><b>Our reading history starts in June 2026.</b> Dates that slipped before then are invisible; "planned" is the earliest date we have seen, and the record gets stricter with every reading.</li>
+      <li><b>Certified progress lags the site by weeks</b> and a finished building can sit below 100% until its certificate is issued.</li>
+      {iss && <li><b>Bond analysis is only as current as the last filing.</b> Half-year accounts are three months old by the time they are published; a rating action can land any day. Check the sources' dates before relying on a figure.</li>}
+    </ul>
+  </section>
+  </div>
+</Base>

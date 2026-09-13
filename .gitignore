@@ -1,0 +1,30 @@
+# No data in the repository, ever — Ali's rule, and the right one. Feeds are built, not committed.
+node_modules/
+dist/
+.astro/
+.deploy/
+logs/
+# the whole data tree is ignored, then the small hand-maintained config files are let back in
+data/*
+!data/issuers/
+!data/issuers/*.json
+!data/developer-groups.json
+public/data/
+public/downloads/
+reports/*.xlsx
+reports/*.zip
+reports/*.pdf
+reports/*.json
+reports/credit/*.xlsx
+reports/credit/templates/pending/
+# secrets
+.dda.json
+.env
+.env.*
+*.pem
+*.key
+# local scratch
+.DS_Store
+__pycache__/
+*.pyc
+/tmp/

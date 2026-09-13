@@ -1,0 +1,48 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { q, q3, aed, gapText, signClass, areaLabel, roomsLabel } from '../../../lib/db';
+export function getStaticPaths() {
+  return q3.rentAreas().map(a => ({ params: { area: a.slug }, props: { name: a.area } }));
+}
+const { area } = Astro.params;
+const { name } = Astro.props;
+const stats = q3.rentAreas().find(a => a.slug === area)!;
+const ly = Object.fromEntries(q3.rentAreaRoomsLy(name).map(r => [r.rooms, r]));
+const sales = Object.fromEntries(q3.salesByRooms(name).map(r => [r.rooms, r]));
+const hasSalesPage = q.areas().some(a => a.slug === area);
+const rows = q3.rentAreaRooms(name).map(r => {
+  const prev = ly[r.rooms];
+  const sale = sales[r.rooms];
+  return {
+    ...r,
+    spread: r.rentNew && r.rentRenew ? r.rentNew / r.rentRenew - 1 : null,
+    yoy: r.rentNew && prev?.rentNew && prev.n >= 30 ? r.rentNew / prev.rentNew - 1 : null,
+    price: sale?.price,
+    yld: r.rentNew && sale?.price ? r.rentNew / sale.price : null,
+  };
+});
+const projects = q3.rentTopProjects(name);
+const short = areaLabel(name).split(' · ')[0];
+---
+<Base title={`Rents in ${short}: Ejari contract rents by bedroom, new vs renewal, yields`} crumbs={[{label:'Rents',href:'/rent/'},{label:short}]}>
+  <h1>Rents in {areaLabel(name)}</h1>
+  <p class="lede">{stats.n.toLocaleString()} registered residential contracts in the last 12 months ({stats.nNew.toLocaleString()} new, {(stats.n - stats.nNew).toLocaleString()} renewals).{hasSalesPage && <> Sale prices for this area are on the <a href={`/dubai/${area}/`}>sales page</a>.</>}</p>
+  <div class="tiles">
+    <div class="tile hero"><div class="k">Avg new-contract rent</div><div class="v">{aed(stats.rentNew)}</div><div class="s">the price of moving in today</div></div>
+    <div class="tile"><div class="k">Avg renewal rent</div><div class="v">{aed(stats.rentRenew)}</div><div class="s">what sitting tenants pay</div></div>
+    <div class="tile"><div class="k">Rent per sqm</div><div class="v">{stats.rpsm ? 'AED ' + stats.rpsm.toLocaleString() : '—'}</div><div class="s">new contracts, per year</div></div>
+  </div>
+
+  <h2>By bedroom count</h2>
+  <p class="note">Avg price is the average recorded sale for the same bedroom count in this area over the same 12 months; gross yield divides the new-contract rent by it. YoY compares new-contract rents with the previous 12 months for the same bedroom count.</p>
+  <div class="scroll"><table><tr><th>Type</th><th class="num">Contracts</th><th class="num">Avg new rent</th><th class="num">Avg renewal</th><th class="num">Spread</th><th class="num">YoY (new)</th><th class="num">Avg recorded price</th><th class="num">Gross yield</th></tr>
+  {rows.map(r => <tr><td>{roomsLabel(r.rooms)}</td><td class="num">{r.n.toLocaleString()}</td><td class="num">{aed(r.rentNew)}</td><td class="num">{aed(r.rentRenew)}</td><td class={'num ' + signClass(r.spread)}>{gapText(r.spread)}</td><td class={'num ' + signClass(r.yoy)}>{gapText(r.yoy)}</td><td class="num">{aed(r.price)}</td><td class="num">{r.yld ? (r.yld * 100).toFixed(1) + '%' : '—'}</td></tr>)}
+  </table></div>
+
+  <h2>Most-rented projects in this area</h2>
+  <div class="scroll"><table><tr><th>Project</th><th class="num">Contracts (12m)</th><th class="num">Avg new rent</th><th class="num">Avg renewal</th></tr>
+  {projects.map(p => <tr><td>{p.project_slug ? <a href={`/dubai/${p.area_slug}/${p.project_slug}/`}>{p.project}</a> : p.project}</td><td class="num">{p.n.toLocaleString()}</td><td class="num">{aed(p.rentNew)}</td><td class="num">{aed(p.rentRenew)}</td></tr>)}
+  </table></div>
+
+  <p class="note" style="background:#eef2f9;padding:10px 12px;border-radius:6px">Renewing a lease here? The RERA cap on your increase depends on how far your current rent sits below the market average — <a href="/tools/rent/">check the allowed increase for your unit →</a></p>
+</Base>

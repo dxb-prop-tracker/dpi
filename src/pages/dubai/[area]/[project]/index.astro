@@ -1,0 +1,181 @@
+---
+import Base from '../../../../layouts/Base.astro';
+import Mortgage from '../../../../components/Mortgage.astro';
+import Roi from '../../../../components/Roi.astro';
+import { q, q2, q4, q5, q6, areasWithStats, mapsUrl, projectImage, aed, pct, gapClass, gapText, scoreClass, signClass, dropUrl, areaLabel, statusLabel, roomsLabel } from '../../../../lib/db';
+import { lineChart, barStrip, sparkline } from '../../../../lib/charts';
+import { projectIntro, buildVerdict, salesSummary, compsVerdict, yieldSentence, short, dateText, num, placeText } from '../../../../lib/prose';
+export function getStaticPaths() { return q.allProjects().map(p => ({ params: { area: p.area_slug, project: p.slug } })); }
+const { area, project } = Astro.params;
+const p = q.project(area!, project!);
+const hist = q.projectHistory(p.project_number);
+const latest = hist.at(-1) ?? null;
+const recorded = q.recordedByRooms(p.project_number);
+const rents = Object.fromEntries(q.rentsByRooms(p.project_number).map(r => [r.rooms, r]));
+const asking = Object.fromEntries(q.askingByRooms(p.project_number).map(a => [a.rooms, a]));
+const drops = q.dropsForProject(p.project_number);
+const txCount = q2.projectTxCount(p.project_number);
+const tx = q2.projectTx(p.project_number, 20);
+const sc = q.serviceCharges(p.name_en);
+const resales = q2.lossesForProject(p.project_number);
+const flag = q2.delayFlag(p.project_number);
+const classified = recorded.filter(r => !r.unclassified);
+const pairs = classified.filter(r => asking[r.rooms]?.psm && r.psm);
+const spread = pairs.length ? pairs.reduce((s, r) => s + asking[r.rooms].psm / r.psm, 0) / pairs.length - 1 : null;
+const rows = recorded.map(r => { const a = asking[r.rooms]; const rn = rents[r.rooms]; return { ...r, askPsm: a?.psm, sp: a?.psm && r.psm ? a.psm / r.psm - 1 : null, rent: rn?.rent, gy: rn?.rent && r.price ? rn.rent / r.price : null }; });
+const dom = classified[0];
+const defaultPrice = dom?.price ?? 2_000_000;
+const ejariRent = dom ? rents[dom.rooms]?.rent : undefined;
+const defaultRent = ejariRent ?? Math.round(defaultPrice * 0.06);
+const rentLabel = ejariRent ? `Annual rent (Ejari avg, ${dom.rooms})` : 'Annual rent (assumed 6% — no Ejari match yet)';
+const scTotal = sc.length ? sc.filter(r => r.year === sc[0].year).reduce((a, r) => a + (r.total ?? 0), 0) : null;
+const scPerUnit = scTotal && p.units ? Math.round(scTotal / p.units) : null;
+const SOURCE_LABEL: Record<string, string> = { dld: 'DLD register file', 'register-extract': 'Register pull (extract)', api: 'DLD API' };
+const loc = q5.location(p.project_number);
+const comps = q5.comps(p);
+const compRows = [comps.self, ...comps.others];
+const fmtPsm = (v: number | null, n: number | null) => (v && (n ?? 0) >= 5) ? v.toLocaleString() : '—';
+const roomCell = (r: any, room: string) => { const s = r.roomStats?.get(room); return s && s.n >= 3 ? { txt: aed(s.price), n: s.n } : null; };
+const nowMonth = new Date().toISOString().slice(0, 7);
+const series = q4.monthlyProject(p.project_number, 37).filter(r => r.m !== nowMonth);
+const projChart = series.filter(r => r.n >= 5).length >= 6 ? lineChart(series.map(r => ({ m: r.m, psm: r.n >= 5 ? r.psm : null, n: r.n })), { title: `Average recorded AED/sqm in ${p.name_en}` }) : '';
+const projVol = projChart ? barStrip(series.map(r => ({ m: r.m, n: r.n })), 'sales') : '';
+const areaStats = areasWithStats().find(a => a.slug === p.area_slug) ?? null;
+const areaYield = q6.areaYield(p.area_name_en);
+const photo = projectImage(p.project_number);
+const homes = (p.units ?? 0) + (p.villas ?? 0);
+// Prose
+const intro = projectIntro(p, latest);
+const verdict = buildVerdict(latest, hist);
+const salesText = salesSummary(recorded, txCount, p.area_name_en, areaStats?.psm90 && areaStats.n90 >= 30 ? areaStats.psm90 : null);
+const compsText = compsVerdict(comps.self, comps.others, comps.community);
+const yieldText = yieldSentence(areaYield, p.area_name_en);
+// Nearby cards: latest register status + 12m sparkline
+const nearby = comps.others.slice(0, 6).map(o => ({ ...o, obs: q6.latestObs(o.pn), img: projectImage(o.pn), spark: q4.monthlyProject(o.pn, 12).map(r => r.psm) }));
+const chipFor = (obs: any) => !obs ? { c: 'muted', t: 'No reading' } : obs.status === 'FINISHED' ? { c: 'ok', t: 'Completed' } : obs.status === 'CANCELLED' ? { c: 'bad', t: 'Cancelled' } : obs.completion_date && obs.completion_date < nowMonth ? { c: 'bad', t: 'Past due' } : { c: 'warn', t: `${Math.round(obs.percent_completed ?? 0)}% built` };
+const heroChip = chipFor(latest);
+---
+<Base title={`${p.name_en}, ${short(p.area_name_en)} — recorded prices, construction progress, delay history`} crumbs={[{label:'Dubai',href:'/dubai/'},{label:short(p.area_name_en),href:`/dubai/${area}/`},{label:p.name_en}]}>
+  <div class="hero">
+    <h1>{p.name_en}</h1>
+    <p class="lede"><span class={'chip ' + heroChip.c}>{heroChip.t}</span> &nbsp; {(p.master_project_en ?? '').trim() && !areaLabel(p.area_name_en).toLowerCase().includes(p.master_project_en.trim().toLowerCase()) && <><b>{p.master_project_en.trim()}</b> · </>}{areaLabel(p.area_name_en)}{p.developer && <> · <a href={`/developers/${p.developer_slug}/`}>{p.developer}</a></>} · <a href={mapsUrl(p)} rel="noopener" target="_blank">Google Maps ↗</a>{p.cancellation_date && <> · <span class="chip bad">Cancelled {p.cancellation_date}</span></>}</p>
+  </div>
+  {photo && <div class="photo"><img src={photo} alt={`${p.name_en}, ${short(p.area_name_en)}`} loading="eager" /></div>}
+
+  <section class="qs" style="margin-top:14px;border-top:0;padding-top:0">
+    <h2><span class="no">1</span>What is this project?</h2>
+    <p class="why">The facts the Dubai Land Department holds about this project, written out.</p>
+    <p class="summary">{intro}</p>
+    <dl class="facts">
+      <div><dt>Developer</dt><dd>{p.developer ? <a href={`/developers/${p.developer_slug}/`}>{p.developer}</a> : '—'}</dd></div>
+      <div><dt>Homes</dt><dd>{homes ? num(homes) : '—'}{p.buildings > 1 ? ` in ${p.buildings} buildings` : ''}</dd></div>
+      <div><dt>Status</dt><dd>{statusLabel(latest?.status)}</dd></div>
+      <div><dt>Certified complete</dt><dd>{latest?.percent_completed != null ? `${latest.percent_completed}%` : '—'}</dd></div>
+      <div><dt>Registered start</dt><dd>{dateText(p.project_start_date) ?? '—'}</dd></div>
+      <div><dt>Registered finish</dt><dd>{dateText(latest?.completion_date) ?? '—'}</dd></div>
+      <div><dt>Escrow agent</dt><dd>{p.escrow_agent_en ?? '—'}</dd></div>
+      <div><dt>DLD project no.</dt><dd>{p.project_number}</dd></div>
+    </dl>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">2</span>Is it actually being built?</h2>
+    <p class="why">Government inspectors sign off how much of a building is finished. That figure — not the developer's claim — is what you see here, and every reading we have ever taken is kept.</p>
+    <div class={'verdict ' + verdict.tone}><span class={'chip ' + verdict.tone}>{verdict.label}</span><span>{verdict.text}{flag && !['FINISHED','CANCELLED'].includes(latest?.status) && ` Delay-risk score ${flag.risk_score}/100: ${flag.reason}.`}</span></div>
+    <div class="scroll"><table><tr><th>Observed</th><th>Status</th><th class="num">% complete</th><th>Completion date</th><th><span class="help" title="Where this reading came from. Each is the DLD register as at the date shown; different pulls can lag each other.">Source</span></th></tr>
+    {hist.map(h => <tr><td>{h.observed_at}</td><td>{statusLabel(h.status)}</td><td class="num">{h.percent_completed ?? '—'}</td><td>{h.completion_date ?? '—'}</td><td class="note">{SOURCE_LABEL[h.source] ?? h.source ?? '—'}</td></tr>)}
+    </table></div>
+    <p class="reads"><b>What this shows.</b> Every reading of this project's status, certified progress and completion date, on the date it was taken, oldest first. Nothing is overwritten. <b>How to read it.</b> Watch the completion date column — a date that moves later between readings is the delay, admitted by the register itself. The source column says which DLD extract each reading came from.</p>
+    <p class="note">The register lags reality: a certified percentage can sit unchanged for months and then jump when an inspection is recorded, and a finished building can stay "under construction" until final certification. Two readings that disagree are usually the register catching up, not the project going backwards.</p>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">3</span>What does it sell for?</h2>
+    <p class="why">Every sale of a home in this project that the Land Department recorded in the last 12 months. These are prices paid, not prices asked.</p>
+    <p class="summary">{salesText}</p>
+    {projChart && <div class="panel">
+      <p class="ttl">Recorded price trend, last 36 months</p>
+      <p class="sub">Average recorded price per sqm (line, months with 5+ sales) · monthly recorded sales (bars). Hover any month.</p>
+      <Fragment set:html={projChart} />
+      <Fragment set:html={projVol} />
+      <p class="reads"><b>What this shows.</b> The average price paid per square metre in this project by month (line, months with five or more sales) and how many sales the register recorded (bars). <b>How to read it.</b> In an off-plan project the line is the developer's price list as buyers took it; once handed over it becomes the resale price. A gap in the line is a month with too few sales to quote.</p>
+    </div>}
+    {recorded.length > 0 && <div class="scroll"><table><tr><th>Type</th><th class="num">Sales (12m)</th><th class="num">Recorded AED/sqm</th><th class="num">Avg recorded price</th><th class="num">Asking AED/sqm</th><th class="num">Spread</th><th class="num">Avg rent (Ejari)</th><th class="num">Gross yield</th></tr>
+    {rows.map(r => <tr><td>{r.unclassified ? <span title="No unit type in the register: bulk transfers, whole floors or unclassified units. Excluded from averages.">Unclassified</span> : r.rooms}</td><td class="num">{r.n}</td><td class="num">{r.psm?.toLocaleString()}</td><td class="num">{aed(r.price)}</td><td class="num">{r.askPsm?.toLocaleString() ?? '—'}</td><td class={'num ' + signClass(r.sp)}>{gapText(r.sp)}</td><td class="num">{aed(r.rent)}</td><td class="num">{pct(r.gy)}</td></tr>)}
+    </table></div>}
+    {recorded.length > 0 && <p class="reads"><b>What this shows.</b> The last twelve months of recorded sales by unit type: how many, the price per square metre paid, the average price, and — where a partnered listing feed carries this project — the asking price and the gap to it, plus the Ejari rent and the gross yield that implies. <b>How to read it.</b> "Spread" is what sellers are asking above what buyers recently paid; a wide spread with few sales is a market that has not cleared. Yield is rent ÷ recorded price, before service charges.</p>}
+    {tx.length > 0 && <details style="margin-top:10px"><summary class="note" style="cursor:pointer">Latest {tx.length} recorded sales of {txCount.toLocaleString()} on file</summary>
+    <div class="scroll" style="margin-top:8px"><table><tr><th>Date</th><th>Type</th><th>Procedure</th><th>Building</th><th>Rooms</th><th class="num">sqm</th><th class="num">Price</th><th class="num">AED/sqm</th></tr>
+    {tx.map(t => <tr><td>{t.instance_date}</td><td>{t.reg_type_en === 'Off-Plan Properties' ? 'Off-plan' : 'Ready'}</td><td>{t.procedure_name_en}</td><td>{t.building_name_en ?? '—'}</td><td>{roomsLabel(t.rooms_en)}</td><td class="num">{t.procedure_area}</td><td class="num">{aed(t.actual_worth)}</td><td class="num">{t.meter_sale_price?.toLocaleString()}</td></tr>)}
+    </table></div></details>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">4</span>Is that a fair price?</h2>
+    <p class="why">The only honest comparison is with what people are actually paying in the most active projects nearby{comps.community ? ` — here, ${comps.community}` : ''}. Ready sales are the secondary market; off-plan sales are developer sales.</p>
+    <p class="summary">{compsText}</p>
+    {comps.others.length > 0 && <div class="scroll"><table>
+      <tr><th>Project</th><th class="num">Sales 12m</th><th class="num"><span class="help" title="Average recorded AED/sqm on ready (secondary-market) sales — 5+ sales required">Ready AED/sqm</span></th><th class="num"><span class="help" title="Average recorded AED/sqm on off-plan (developer) sales — 5+ sales required">Off-plan AED/sqm</span></th>{comps.roomCols.map(rc => <th class="num">{rc} avg price</th>)}</tr>
+      {compRows.map(r => <tr style={r.self ? 'background:#eaf1ef' : undefined}>
+        <td>{r.self ? <b>{r.name}</b> : <a href={`/dubai/${r.area_slug}/${r.slug}/`}>{r.name}</a>}</td>
+        <td class="num">{(r.n ?? 0).toLocaleString()}</td>
+        <td class="num">{fmtPsm(r.secPsm, r.secN)}</td>
+        <td class="num">{fmtPsm(r.offPsm, r.offN)}</td>
+        {comps.roomCols.map(rc => { const c = roomCell(r, rc); return <td class="num">{c ? <span title={`${c.n} recorded sales`}>{c.txt}</span> : '—'}</td>; })}
+      </tr>)}
+    </table></div>}
+    {comps.others.length > 0 && <p class="reads"><b>What this shows.</b> This project (shaded) against the most active projects around it, on the same twelve-month recorded prices: ready sales, off-plan sales, and the price per square metre by bedroom count. <b>How to read it.</b> Compare like with like — ready against ready, two-beds against two-beds. A project priced well above its ready neighbours is selling a premium that the resale market will have to confirm at handover.</p>}
+    {resales.length > 0 && <details style="margin-top:12px"><summary class="note" style="cursor:pointer">Same-specification resales in this project, last 24 months ({resales.length})</summary>
+    <p class="note" style="margin-top:8px">Consecutive recorded sales of the same building, unit type and exact registered area. Negative = the seller exited below their own recorded entry price.</p>
+    <div class="scroll"><table><tr><th>Sold</th><th>Building</th><th>Type</th><th class="num">sqm</th><th class="num">Bought for</th><th class="num">Bought on</th><th class="num">Sold for</th><th class="num">Change</th><th class="num">Held (days)</th></tr>
+    {resales.map(r => <tr><td>{r.sold_on}</td><td>{r.building_name_en}</td><td>{roomsLabel(r.rooms_en)}</td><td class="num">{r.procedure_area}</td><td class="num">{aed(r.bought_for)}</td><td class="num">{r.bought_on}</td><td class="num">{aed(r.sold_for)}</td><td class={'num ' + signClass(r.change_pct)}>{gapText(r.change_pct)}</td><td class="num">{r.hold_days}</td></tr>)}
+    </table></div></details>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">5</span>What could it earn if you rent it out?</h2>
+    <p class="why">Rents registered with Ejari for homes of this kind in {short(p.area_name_en)}, set against what homes here actually sell for — then run through the Central Bank's mortgage rules.</p>
+    {yieldText ? <p class="summary">{yieldText}</p> : <p class="summary">Not enough registered rent contracts or ready sales in {short(p.area_name_en)} in the last year to state a yield with confidence; the calculator below lets you test your own assumptions.</p>}
+    {scPerUnit && <p class="note">Approved service-charge budget (Mollak, {sc[0].year}): about AED {scPerUnit.toLocaleString()} per home per year across {sc.filter(r => r.year === sc[0].year).length} budget line{sc.filter(r => r.year === sc[0].year).length === 1 ? '' : 's'}.</p>}
+    <div class="grid2" style="margin-top:14px">
+      <div><h3 style="margin:0 0 8px;font-size:15px">Mortgage affordability</h3><Mortgage price={defaultPrice} offplan={latest?.status !== 'FINISHED'} /></div>
+      <div><h3 style="margin:0 0 8px;font-size:15px">Return on investment</h3><Roi price={defaultPrice} rent={defaultRent} rentLabel={rentLabel} serviceCharge={scPerUnit} /></div>
+    </div>
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">6</span>What's advertised right now</h2>
+    <p class="why">Asking prices are what a seller hopes to get today. They are not proof of value and are never mixed with the recorded prices above.</p>
+    {spread != null ? <p class="summary">Across unit types with both an asking price and recorded sales, sellers are asking <b class={signClass(spread)}>{gapText(spread)}</b> versus what buyers actually paid per square metre in the last 90 days.</p>
+      : <p class="summary">No validated listings for this project are on file yet. Listings appear here only from partnered feeds or permit-validated submissions, so this is a coverage gap, not a signal.</p>}
+    {drops.length > 0 && <div class="scroll"><table><tr><th>Listing</th><th>Type</th><th class="num">First seen</th><th class="num">Now</th><th class="num">Cuts</th><th class="num">Total cut</th><th class="num">vs recorded</th><th class="num">Days tracked</th><th class="num">Score</th><th>Permit</th></tr>
+    {drops.map(d => <tr><td><a href={dropUrl(d.listing_id)}>{d.listing_id}</a></td><td>{d.rooms_en}{d.is_off_plan ? ' · off-plan' : ''}</td><td class="num">{aed(d.first_price)}</td><td class="num">{aed(d.current_price)}</td><td class="num">{d.drop_count}</td><td class="num down">-{pct(d.cumulative_pct)}</td><td class={gapClass(d.gap_to_recorded_pct)}>{gapText(d.gap_to_recorded_pct)}</td><td class="num">{d.days_tracked}</td><td class="num"><span class={scoreClass(d.distress_score)}>{d.distress_score}</span></td><td>{d.permit_number} · <a href={d.url} rel="nofollow noopener" target="_blank">listing ↗</a></td></tr>)}
+    </table></div>}
+  </section>
+
+  <section class="qs">
+    <h2><span class="no">7</span>Where it is</h2>
+    <p class="why">Location as the register describes it, and what {short(p.area_name_en)} as a whole sells and rents for.</p>
+    <dl class="facts">
+      <div><dt>Community</dt><dd>{(p.master_project_en ?? '').trim() || '—'}</dd></div>
+      <div><dt>Registry area</dt><dd><a href={`/dubai/${p.area_slug}/`}>{areaLabel(p.area_name_en)}</a></dd></div>
+      <div><dt>Nearest metro</dt><dd>{loc?.metro ?? '—'}</dd></div>
+      <div><dt>Nearest landmark</dt><dd>{loc?.landmark ?? '—'}</dd></div>
+      <div><dt>Nearest mall</dt><dd>{loc?.mall ?? '—'}</dd></div>
+      <div><dt>Map</dt><dd><a href={mapsUrl(p)} rel="noopener" target="_blank">Open in Google Maps ↗</a></dd></div>
+    </dl>
+    {areaStats?.psm90 && areaStats.n90 >= 30 && <p class="summary" style="margin-top:12px">Across {short(p.area_name_en)}, homes sold at an average of AED {areaStats.psm90.toLocaleString()} per square metre in the last three months ({areaStats.n90.toLocaleString()} sales){areaStats.psmLy && areaStats.nLy >= 30 ? `, ${Math.abs((areaStats.psm90 / areaStats.psmLy - 1) * 100).toFixed(1)}% ${areaStats.psm90 >= areaStats.psmLy ? 'up' : 'down'} on a year earlier` : ''}. <a href={`/dubai/${p.area_slug}/`}>Everything about {short(p.area_name_en)} →</a></p>}
+  </section>
+
+  {nearby.length > 0 && <section class="qs">
+    <h2><span class="no">8</span>Other projects nearby</h2>
+    <p class="why">The most active projects in {comps.community ?? short(p.area_name_en)} over the last 12 months.</p>
+    <div class="cards">
+      {nearby.map(o => { const ch = chipFor(o.obs); return <a class="pcard" href={`/dubai/${o.area_slug}/${o.slug}/`}>
+        <div class="ph">{o.img && <img src={o.img} alt="" loading="lazy" />}<span class={'chip ' + ch.c}>{ch.t}</span></div>
+        <div class="bd"><h3>{o.name}</h3><div class="m">{o.n.toLocaleString()} sales · 12m</div>
+        <div class="p"><div><b>{o.secPsm && o.secN >= 5 ? `AED ${o.secPsm.toLocaleString()}` : o.offPsm && o.offN >= 5 ? `AED ${o.offPsm.toLocaleString()}` : '—'}</b><span> /sqm · {o.secPsm && o.secN >= 5 ? 'ready' : 'off-plan'}</span></div><Fragment set:html={sparkline(o.spark.filter((x: any) => x))} /></div></div>
+      </a>; })}
+    </div>
+  </section>}
+</Base>

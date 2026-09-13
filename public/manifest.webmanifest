@@ -1,0 +1,13 @@
+{
+  "name": "Dubai Property Intelligence",
+  "short_name": "DPI",
+  "description": "Dubai property from the land registry: registered prices, real Ejari rents, project delivery, valuations and developer credit.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#0e5c63",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,141 @@
+---
+import Base from '../../layouts/Base.astro';
+import { n, fmtDate } from '../../lib/reports';
+import fs from 'node:fs';
+import path from 'node:path';
+const f = path.resolve(process.cwd(), 'public/data/moves.json');
+const mv = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+---
+<Base title="Watchlist — what moved in the towers you follow" crumbs={[{ label: 'Watchlist' }]}>
+  <div class="wl">
+    <h1>Watchlist</h1>
+    <p class="lede">Follow any project and see what the land registry recorded against it — new sales, certified progress, a completion date that moved, a status that changed. {mv && <>Covering the last {mv.windowDays} days; {n(mv.projects)} projects moved, read {fmtDate(mv.asOf)}.</>}</p>
+    <p class="note">Your list is stored in this browser and never sent anywhere — not to us, not to anyone. That means it does not follow you between devices, and clearing your browser data clears it. For people tracking specific towers we think that is the right trade.</p>
+
+    <div class="wladd">
+      <label class="fld"><span>Add a project</span>
+        <input id="wq" type="text" autocomplete="off" placeholder="start typing a project name…" />
+        <div id="wsugg" class="sugg" hidden></div>
+      </label>
+      <button id="wclear" class="btn-ghost" type="button">Clear the list</button>
+    </div>
+
+    <div id="wlout"></div>
+
+    <section class="qs">
+      <h2><span class="no">1</span>Everything that moved</h2>
+      <p class="why">The whole feed, whether you follow it or not — {mv ? n(mv.projects) : 'every'} projects with recorded movement in the last {mv?.windowDays ?? 45} days, busiest first.</p>
+      <div id="allmoves"></div>
+      <p class="reads"><b>What this shows.</b> Movement, not opinion: a sale registered, a certified-progress reading that changed, a completion date refiled, a status that moved. <b>How to read it.</b> A completion date moving out is the single most useful early signal on this page — it is the developer's own filing, and a date that slips once tends to slip again. A fall in sales against the prior period is the second: it is measured against the same length of window immediately before, so it is like for like.</p>
+    </section>
+  </div>
+
+  <script is:inline>
+    (function () {
+      var KEY = 'dpi.watch.v1', LAST = 'dpi.watch.seen';
+      var data = null, idx = null;
+      var wq = document.getElementById('wq'), sugg = document.getElementById('wsugg'),
+          out = document.getElementById('wlout'), all = document.getElementById('allmoves');
+
+      function get() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+      function set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} render(); }
+      function seen() { try { return localStorage.getItem(LAST) || ''; } catch (e) { return ''; } }
+      function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+      var f0 = function (v) { return v == null ? '—' : Math.round(v).toLocaleString('en-GB'); };
+
+      Promise.all([
+        fetch('/data/moves.json').then(function (r) { return r.json(); }),
+        fetch('/search-index.json').then(function (r) { return r.json(); }).catch(function () { return []; })
+      ]).then(function (r) {
+        data = r[0]; idx = (r[1] || []).filter(function (e) { return e.t === 'Project'; });
+        render(); renderAll();
+        try { localStorage.setItem(LAST, data.asOf); } catch (e) {}
+      });
+
+      function evText(e) {
+        if (e.kind === 'sales') return '<b>' + f0(e.n) + ' sales</b> worth AED ' + f0(e.valueAedM) + 'm' +
+          (e.vsPriorPct == null ? '' : ' <span class="' + (e.vsPriorPct < 0 ? 'down' : 'up') + '">' +
+          (e.vsPriorPct > 0 ? '+' : '') + e.vsPriorPct + '% vs the period before</span>') +
+          (e.last ? ' · latest ' + esc(e.last) : '');
+        if (e.kind === 'progress') return '<b>Certified progress ' + (e.deltaPct > 0 ? '+' : '') + e.deltaPct +
+          ' points</b> (' + f0(e.from) + '% → ' + f0(e.to) + '%), read ' + esc(e.readOn);
+        if (e.kind === 'completionDate') return '<b class="down">Completion date refiled</b> ' +
+          esc(e.from || 'none') + ' → ' + esc(e.to || 'none') + ', read ' + esc(e.readOn);
+        if (e.kind === 'status') return '<b>Status changed</b> ' + esc(e.from) + ' → ' + esc(e.to) + ', read ' + esc(e.readOn);
+        return esc(e.kind);
+      }
+      function card(r, watched) {
+        return '<div class="mcard"><div class="mh"><a href="' + r.url + '">' + esc(r.name) + '</a>' +
+          '<span class="m">' + esc(r.area) + (r.developer ? ' · ' + esc(r.developer) : '') + '</span>' +
+          (watched ? '<button class="btn-ghost sm" data-rm="' + esc(r.pn) + '">Remove</button>'
+                   : '<button class="btn-ghost sm" data-add="' + esc(r.pn) + '">Follow</button>') +
+          '</div><ul>' + r.events.map(function (e) { return '<li>' + evText(e) + '</li>'; }).join('') + '</ul></div>';
+      }
+      function render() {
+        if (!data) return;
+        var w = get();
+        if (!w.length) {
+          out.innerHTML = '<p class="empty">Nothing followed yet. Add a project above, or press <b>Follow</b> on any row below.</p>';
+          return;
+        }
+        var rows = data.rows.filter(function (r) { return w.indexOf(r.pn) >= 0; });
+        var quiet = w.filter(function (pn) { return !data.rows.some(function (r) { return r.pn === pn; }); });
+        out.innerHTML = '<h2 class="sub2">' + w.length + ' followed · ' + rows.length + ' moved</h2>' +
+          (rows.length ? rows.map(function (r) { return card(r, true); }).join('')
+                       : '<p class="empty">None of the projects you follow moved in the last ' + data.windowDays + ' days.</p>') +
+          (quiet.length ? '<p class="note">' + quiet.length + ' followed project' + (quiet.length > 1 ? 's' : '') +
+            ' had no recorded movement: ' + quiet.map(function (pn) {
+              var e = idx.filter(function (x) { return x.pn === pn; })[0];
+              return esc(e ? e.n : pn) + ' <button class="linkbtn" data-rm="' + esc(pn) + '">remove</button>';
+            }).join(', ') + '</p>' : '');
+      }
+      function renderAll() {
+        if (!data) return;
+        var w = get();
+        all.innerHTML = data.rows.slice(0, 60).map(function (r) { return card(r, w.indexOf(r.pn) >= 0); }).join('') +
+          (data.rows.length > 60 ? '<p class="note">Showing the 60 busiest of ' + f0(data.rows.length) + '. Follow the ones you care about to keep them at the top.</p>' : '');
+      }
+      document.addEventListener('click', function (e) {
+        var a = e.target.getAttribute && e.target.getAttribute('data-add');
+        var r = e.target.getAttribute && e.target.getAttribute('data-rm');
+        if (a) { var w = get(); if (w.indexOf(a) < 0) w.push(a); set(w); renderAll(); }
+        if (r) { set(get().filter(function (x) { return x !== r; })); renderAll(); }
+      });
+      document.getElementById('wclear').addEventListener('click', function () { set([]); renderAll(); });
+
+      wq.addEventListener('input', function () {
+        var t = wq.value.trim().toLowerCase();
+        if (t.length < 2 || !idx) { sugg.hidden = true; return; }
+        var hit = idx.filter(function (x) { return x.n.toLowerCase().indexOf(t) >= 0; }).slice(0, 10);
+        sugg.innerHTML = hit.map(function (x) {
+          return '<button type="button" data-add="' + esc(x.pn) + '">' + esc(x.n) + '<span class="x">' + esc(x.x || '') + '</span></button>';
+        }).join('');
+        sugg.hidden = !hit.length;
+      });
+      sugg.addEventListener('click', function () { sugg.hidden = true; wq.value = ''; });
+    })();
+  </script>
+
+  <style is:global>
+    .wl .wladd{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:16px 0 20px}
+    .wl .fld{position:relative;flex:1 1 340px;display:flex;flex-direction:column;gap:5px}
+    .wl .fld span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    .wl input{font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--ink);width:100%}
+    .wl .sugg{position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-top:4px;max-height:300px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.09)}
+    .wl .sugg button{display:flex;gap:8px;width:100%;text-align:left;background:none;border:0;font:inherit;font-size:14px;padding:9px 12px;cursor:pointer;color:var(--ink)}
+    .wl .sugg button:hover{background:var(--wash)}
+    .wl .sugg .x{margin-left:auto;color:var(--muted);font-size:12px}
+    .wl .btn-ghost{font:inherit;font-size:13.5px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 14px;cursor:pointer;color:var(--ink2)}
+    .wl .btn-ghost:hover{border-color:var(--accent);color:var(--ink)}
+    .wl .btn-ghost.sm{margin-left:auto;padding:4px 10px;font-size:12px}
+    .wl .linkbtn{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--link);text-decoration:underline;cursor:pointer}
+    .wl .mcard{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px 15px;margin:0 0 9px}
+    .wl .mcard .mh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+    .wl .mcard .mh a{font-weight:600}
+    .wl .mcard .mh .m{font-size:12px;color:var(--muted)}
+    .wl .mcard ul{margin:7px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6}
+    .wl .empty{font-size:14px;color:var(--muted);background:var(--wash);border-radius:10px;padding:16px 18px}
+    .wl .up{color:var(--green)}.wl .down{color:var(--red)}
+    .wl .sub2{font-family:var(--serif);font-size:17px;font-weight:650;margin:20px 0 8px}
+  </style>
+</Base>

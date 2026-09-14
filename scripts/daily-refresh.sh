@@ -37,11 +37,19 @@ trap 'rmdir logs/.running 2>/dev/null' EXIT
       bash scripts/notify.sh "DPI refresh: PRESHIP GATE FAILED — site NOT deployed" "$LOG"
       rc=$prc
     else
-      echo "=== deploy started $(date '+%F %T') ==="
-      bash scripts/deploy-swa.sh; drc=$?
-      echo "=== deploy finished $(date '+%F %T') — exit code $drc ($([ $drc -eq 0 ] && echo OK || echo FAILED, site unchanged) ==="
-      if [ $drc -ne 0 ]; then
-        bash scripts/notify.sh "DPI refresh: DEPLOY FAILED (exit $drc) — live site is stale" "$LOG"
+      # Deploy switched off on 14 September 2026 (Tammam): this repository is the test bed and
+      # Ali's site is the product; nothing here is published for readers, and no Azure
+      # subscription of our own exists to deploy into (the step had failed every day since
+      # 7 September with "not signed in"). Set DPI_DEPLOY=1 to run it again.
+      if [ "${DPI_DEPLOY:-0}" = "1" ]; then
+        echo "=== deploy started $(date '+%F %T') ==="
+        bash scripts/deploy-swa.sh; drc=$?
+        echo "=== deploy finished $(date '+%F %T') — exit code $drc ($([ $drc -eq 0 ] && echo OK || echo FAILED, site unchanged) ==="
+        if [ $drc -ne 0 ]; then
+          bash scripts/notify.sh "DPI refresh: DEPLOY FAILED (exit $drc) — live site is stale" "$LOG"
+        fi
+      else
+        echo "=== deploy skipped $(date '+%F %T') — switched off; the gate is the end of the run ==="
       fi
     fi
   else

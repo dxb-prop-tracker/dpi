@@ -200,6 +200,86 @@ def clear_row(root, row, first_col, last_col):
         c.attrib.pop('t', None)
 
 
+def set_formula(cmap, ref, text):
+    """Replace a cell's formula and drop its stored result. Used only where the canonical model's
+    Cash flow sheet assumes Binghatti's debt shape (four sukuk in rows 32-35, eight dated lines)."""
+    c = cmap.get(ref)
+    if c is None:
+        return False
+    for ch in list(c):
+        c.remove(ch)
+    c.attrib.pop('t', None)
+    f = ET.SubElement(c, Q('f'))
+    f.text = text
+    return True
+
+
+def generalise_cash_flow(root, notes):
+    """The canonical Cash flow sheet is written for Binghatti's debt: rows 32-35 are its four sukuk
+    and every one of the eight Debt rows carries a maturity. An issuer with three sukuk puts a
+    bank line in row 35, and a bank line with no stated maturity puts a blank date into a month
+    index. Both broke the derived workbooks (14 Sep 2026: every Dashboard and Cover figure on
+    Sobha and Arada read #VALUE!): the sukuk-profit line summed a column that, through the bank
+    rate, depended on itself, and the maturity table looked up month -1521.
+    Three changes, each a no-op on the canonical shape:
+      B46  reads coupons from the Debt sheet directly (blank for bank lines), over all eight rows;
+      G32:G39  a line with no maturity date has no month index ("") — it pays interest to the
+               horizon and never a principal;
+      E94:G101  a line with no month index shows no cash test, and the totals ignore it."""
+    cm = cells(root)
+    set_formula(cm, 'B46', '-SUMPRODUCT(($B$32:$B$39="Sukuk")*$C$32:$C$39*Debt!$F$6:$F$13)')
+    for i, r in enumerate(range(32, 40)):
+        set_formula(cm, f'G{r}', f'IF(Debt!H{6 + i}="","",(YEAR(E{r})-YEAR($B$18))*12+MONTH(E{r})-MONTH($B$18))')
+    for r in range(94, 102):
+        set_formula(cm, f'E{r}', f'IF($D{r}="","",INDEX($C$71:$BN$71,1,MATCH($D{r},$C$57:$BN$57,0))+INDEX($C$68:$BN$68,1,MATCH($D{r},$C$57:$BN$57,0)))')
+        set_formula(cm, f'F{r}', f'IF(OR($E{r}="",$C{r}<=0),"",$E{r}/$C{r})')
+        set_formula(cm, f'G{r}', f'IF($E{r}="","",MAX(0,$C{r}-$E{r}))')
+    notes.append('Cash flow: sukuk profit read from Debt!F6:F13; lines without a maturity date carry no '
+                 'month index and no cash test (they pay interest to the horizon, never a principal)')
+
+
+def guard_headroom(roots, notes):
+    """The headroom measure (Dashboard section 1, the Break-even grid, Cash flow B117) is written on
+    Binghatti's dates — 28 Feb 2027, 31 Dec 2027, 31 Dec 2028 — and divides by the debt due by
+    each. An issuer with nothing due by 28 Feb 2027 (Sobha's first maturity is July 2028) divided by
+    zero and every cell that read the grid showed #DIV/0!. Until the horizons are set per issuer
+    (backlog), the grid reads blank where there is no debt to measure against, and the sheet says so."""
+    be = roots.get('Break-even')
+    if be is not None:
+        n = 0
+        for c in be.iter(Q('c')):
+            f = c.find(Q('f'))
+            if f is not None and f.text and '($B$28+_xlpm.rel)/$B$29)' in f.text:
+                f.text = f.text.replace('($B$28+_xlpm.rel)/$B$29)', 'IF($B$29>0,($B$28+_xlpm.rel)/$B$29,""))')
+                for v in c.findall(Q('v')):
+                    c.remove(v)
+                n += 1
+        cm = cells(be)
+        set_formula(cm, 'B10', 'IF($B$29>0,$C$36,"")')
+        set_formula(cm, 'B49', 'IF(OR($C$36="",Dashboard!$F$17=""),"",$C$36-Dashboard!$F$17)')
+        put(cm, 'A3', 'This grid measures headroom against the debt due by 28 February 2027, the date the canonical '
+                      'model was written for. Where this issuer has no debt due by then the grid is blank; the '
+                      'cash test on the Cash flow sheet (section 6) is measured at each of its own maturities.', 's')
+        notes.append(f'Break-even: {n} grid cells guarded against a zero debt-due denominator')
+    dash = roots.get('Dashboard')
+    if dash is not None:
+        # the largest-projects list asks for the k-th largest of a block that may hold fewer than k
+        # rows (Arada: five projects); a missing rank reads blank, not #NUM!
+        n = 0
+        for c in dash.iter(Q('c')):
+            f = c.find(Q('f'))
+            if f is not None and f.text and 'LARGE(Simulator!' in f.text and not f.text.startswith('IFERROR('):
+                f.text = 'IFERROR(' + f.text + ',"")'
+                for v in c.findall(Q('v')):
+                    c.remove(v)
+                n += 1
+        if n:
+            notes.append(f'Dashboard: {n} largest-project cells read blank past the issuer\'s project count')
+    cf = roots.get('Cash flow')
+    if cf is not None:
+        set_formula(cells(cf), 'B117', 'IF(OR(Dashboard!$F$17="",\'Break-even\'!$C$36=""),"",Dashboard!$F$17-\'Break-even\'!$C$36)')
+
+
 def apply(model, issuer_json, out_path, canon='Binghatti'):
     iss = json.load(open(issuer_json))
     items = [parse_instrument(b) for b in iss.get('bonds', [])]
@@ -327,6 +407,11 @@ def apply(model, issuer_json, out_path, canon='Binghatti'):
             put(cm, f'A{33 + i}', '•  ' + str(g), 's')
         for r in range(33 + len(iss.get('gaps', [])[:6]), 39):
             put(cm, f'A{r}', None)
+
+    # ---- Cash flow: the canonical sheet assumes Binghatti's debt shape ----
+    if 'Cash flow' in roots:
+        generalise_cash_flow(roots['Cash flow'], notes)
+    guard_headroom(roots, notes)
 
     # ---- Cover ----
     if 'Cover' in roots:

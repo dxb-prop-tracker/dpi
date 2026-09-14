@@ -83,8 +83,12 @@ const flagged = db.prepare(`
     t.n, t.v, t.op,
     0, ''
   FROM project p
+  -- one reading per project: the newest, and on a tie of dates the register itself (gateway) over the
+  -- workbook copy over the API load — a project can carry two readings on one date since the
+  -- workbook's readings are dated by inspection (14 Sep 2026), and a date-only match returned both
   JOIN (SELECT project_number, status, percent_completed, completion_date FROM project_observation o1
-        WHERE observed_at=(SELECT MAX(observed_at) FROM project_observation WHERE project_number=o1.project_number)) o USING(project_number)
+        WHERE o1.id=(SELECT id FROM project_observation x WHERE x.project_number=o1.project_number
+                     ORDER BY observed_at DESC, CASE source WHEN 'gateway' THEN 0 WHEN 'register-extract' THEN 1 ELSE 2 END, id DESC LIMIT 1)) o USING(project_number)
   JOIN (SELECT project_number, COUNT(*) n, SUM(actual_worth) v, SUM(CASE WHEN reg_type_en='Off-Plan Properties' THEN 1 ELSE 0 END) op
         FROM transaction_ WHERE trans_group_en='Sales' AND instance_date>=date('now','-365 days') GROUP BY project_number) t USING(project_number)
   WHERE o.status IN ('ACTIVE','NOT_STARTED','PENDING') AND o.completion_date IS NOT NULL AND t.n>=20

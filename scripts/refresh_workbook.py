@@ -178,7 +178,15 @@ def refresh(template, csv_path, out_path, meta_path=None, force=False):
                     rec = near[0]
                     notes.append(f'{sheet} row {r}: matched "{key}" to "{rec["project"]}"')
             if rec is None:
-                if key not in ('Total', 'Total, all live projects'):
+                if key.startswith('no project inside the handover window'):
+                    # the placeholder row issuer_model.py leaves when the watch is empty: blank its
+                    # figures rather than refuse — an empty watch is a finding, not a fault
+                    for col in mapping:
+                        c = cell_of(row_el, f'{col}{r}')
+                        if c is not None and c.find(Q('f')) is None:
+                            set_cell(c, None, False)
+                    notes.append(f'{sheet}: no project inside the handover window; one placeholder row')
+                elif key not in ('Total', 'Total, all live projects'):
                     problems.append(f'{sheet} row {r}: "{key}" is no longer in the register')
                 continue
             n_rows += 1

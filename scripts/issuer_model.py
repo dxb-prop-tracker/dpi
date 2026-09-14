@@ -332,6 +332,10 @@ def build(canonical, register_csv, handover_csv, out_path):
     keys = {'Simulator': [r['project_number'] for r in reg if r.get('is_live') == '1'],
             'Projects': [r['project_number'] for r in reg],
             'Handover check': [r.get('project') or r.get('project_number') for r in hand]}
+    # An issuer with nothing inside the handover window is a normal state, not a refusal: the watch
+    # keeps one row that says so (Arada, 14 Sep 2026, once Jouri Hills carried a current reading).
+    if not keys['Handover check']:
+        keys['Handover check'] = ['no project inside the handover window at this register read']
     want = {k: len(v) for k, v in keys.items()}
     for s, n in want.items():
         if n < 1:

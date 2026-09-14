@@ -76,7 +76,7 @@ export const q = {
       (SELECT ROUND(SUM(actual_worth)/1e9,2) FROM transaction_ t WHERE t.project_number IN (SELECT project_number FROM project WHERE developer_number=d.developer_number) AND t.trans_group_en='Sales' AND t.instance_date>=date('now','-365 days')) AS valueBn,
       (SELECT COUNT(*) FROM delay_flag f WHERE f.project_number IN (SELECT project_number FROM project WHERE developer_number=d.developer_number)) AS flagged
     FROM developer d JOIN project p ON p.developer_number=d.developer_number
-    LEFT JOIN (SELECT project_number, status, completion_date FROM project_observation o1 WHERE observed_at=(SELECT MAX(observed_at) FROM project_observation WHERE project_number=o1.project_number)) o ON o.project_number=p.project_number
+    LEFT JOIN (SELECT project_number, status, completion_date FROM project_observation o1 WHERE o1.id=(SELECT id FROM project_observation x WHERE x.project_number=o1.project_number ORDER BY observed_at DESC, CASE source WHEN 'gateway' THEN 0 WHEN 'register-extract' THEN 1 ELSE 2 END, id DESC LIMIT 1)) o ON o.project_number=p.project_number
     GROUP BY d.developer_number HAVING projects>0 ORDER BY sales12m DESC`).all() as any[],
   developer: (slug: string) => db.prepare(`SELECT * FROM developer WHERE slug=?`).get(slug) as any,
   developerProjects: (dn: string) => db.prepare(`
@@ -84,7 +84,7 @@ export const q = {
       CASE WHEN o.status IN ('ACTIVE','NOT_STARTED','PENDING') AND o.completion_date < date('now') THEN 1 ELSE 0 END AS overdue,
       (SELECT COUNT(*) FROM transaction_ t WHERE t.project_number=p.project_number AND t.trans_group_en='Sales' AND t.instance_date>=date('now','-365 days')) AS sales12m,
       (SELECT ROUND(AVG(meter_sale_price)) FROM transaction_ t WHERE t.project_number=p.project_number AND t.trans_group_en='Sales' AND t.property_type_en='Unit' AND t.instance_date>=date('now','-90 days') AND meter_sale_price>0) AS psm90
-    FROM project p LEFT JOIN (SELECT project_number, status, percent_completed, completion_date FROM project_observation o1 WHERE observed_at=(SELECT MAX(observed_at) FROM project_observation WHERE project_number=o1.project_number)) o USING(project_number)
+    FROM project p LEFT JOIN (SELECT project_number, status, percent_completed, completion_date FROM project_observation o1 WHERE o1.id=(SELECT id FROM project_observation x WHERE x.project_number=o1.project_number ORDER BY observed_at DESC, CASE source WHEN 'gateway' THEN 0 WHEN 'register-extract' THEN 1 ELSE 2 END, id DESC LIMIT 1)) o USING(project_number)
     WHERE developer_number=? ORDER BY sales12m DESC, name_en`).all(dn) as any[],
   serviceCharges: (projectName: string) => db.prepare(`
     SELECT budget_year AS year, property_group AS building, usage, ROUND(SUM(cost)) AS total, management_company AS manager

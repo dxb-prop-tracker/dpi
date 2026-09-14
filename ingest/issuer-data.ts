@@ -41,7 +41,7 @@ const COLS = ['project_number', 'project', 'area', 'status', 'certified_pct', 'r
   'last_read', 'units', 'sold_units', 'avg_ticket_aed', 'offplan_sales_all', 'offplan_value_aed', 'all_sales',
   'sales_12m', 'value_12m_aed', 'sales_prior_12m', 'sales_90d', 'avg_psm_12m', 'mortgages_12m',
   'resales_24m', 'resales_at_loss', 'avg_resale_change_pct', 'avg_hold_days', 'escrow_agent',
-  'first_sale', 'last_sale', 'project_start', 'is_live', 'ready_sales_since_bs', 'mortgages_since_bs', 'reading_current', 'capacity_basis'];
+  'first_sale', 'last_sale', 'project_start', 'is_live', 'ready_sales_since_bs', 'mortgages_since_bs', 'reading_current', 'capacity_basis', 'parcel_sales', 'parcel_value_aed'];
 
 // A register reading counts as current when it was taken this year. The data.dubai API load is
 // October-2025 content (see ingest-dld.ts), so a project whose latest reading is that load has
@@ -50,25 +50,39 @@ const COLS = ['project_number', 'project', 'area', 'status', 'certified_pct', 'r
 const CURRENT_FROM = '2026-01-01';
 const isCurrent = (r: any) => !!(r.last_read && r.last_read >= CURRENT_FROM);
 
+/** A sale of a home, as the product's price_basis() decides it: a Unit, a Villa, or a Land row inside the
+ *  project up to 3,000 m² (a villa or townhouse sold against its plot). Larger parcels and whole buildings
+ *  are not homes and never enter a per-home figure. */
+const HOME = "(property_type_en IN ('Unit','Villa') OR (property_type_en='Land' AND IFNULL(procedure_area,0)<=3000))";
+
 function issuerRows(db: any, devs: string[], balanceSheet: string) {
   const marks = devs.map(() => '?').join(',');
   const y1 = ago(365), y2 = ago(730), d90 = ago(90);
   return db.prepare(`
     WITH ol AS (SELECT o.project_number pn, o.status, o.percent_completed pct, o.completion_date cd, o.observed_at
-                FROM project_observation o WHERE o.id=(SELECT id FROM project_observation x WHERE x.project_number=o.project_number ORDER BY observed_at DESC, id DESC LIMIT 1)),
+                FROM project_observation o WHERE o.id=(SELECT id FROM project_observation x WHERE x.project_number=o.project_number ORDER BY observed_at DESC, CASE source WHEN 'gateway' THEN 0 WHEN 'register-extract' THEN 1 ELSE 2 END, id DESC LIMIT 1)),
+         -- same-day readings: the gateway (the register itself) outranks the workbook copy, which rounds
          of_ AS (SELECT project_number pn, MIN(completion_date) first_cd FROM project_observation WHERE completion_date IS NOT NULL GROUP BY 1),
          -- A developer's sale is one of three register procedures, not a registration type. "Delayed Sell"
          -- (Arabic: preliminary sale) is how a developer registers villa and plot sales and payment-plan
          -- sales of finished homes; the register types those rows 'Existing', so counting developer sales
          -- by reg_type missed them — 1,075 Sobha sales worth AED 8.8bn since January 2025 (Ali's finding,
          -- 13 Sep 2026). 'Sell' alone is a completed home changing hands.
+         -- A developer's sale is also a sale of a HOME: a Unit, a Villa, or a Land-typed row inside the
+         -- project up to 3,000 m² (a villa or townhouse registered against its plot). A larger Land row
+         -- or a Building row under the same procedures is the developer buying its own parcel or a
+         -- whole building changing hands — Sobha Central Phase II carried a 99,186 m² "Delayed Sell" of
+         -- AED 1.45bn that doubled its average ticket (B3 engine comparison, 14 Sep 2026). The same
+         -- rule is the product's price_basis() in refresh/dubai_sales_classes.py.
          sa AS (SELECT project_number pn, COUNT(*) n_all, MIN(instance_date) first_sale, MAX(instance_date) last_sale,
-                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') THEN 1 ELSE 0 END) n_off,
-                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') THEN actual_worth ELSE 0 END) v_off
+                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') AND ${HOME} THEN 1 ELSE 0 END) n_off,
+                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') AND ${HOME} THEN actual_worth ELSE 0 END) v_off,
+                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') AND NOT ${HOME} THEN 1 ELSE 0 END) n_parcel,
+                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') AND NOT ${HOME} THEN actual_worth ELSE 0 END) v_parcel
                 FROM transaction_ WHERE trans_group_en='Sales' GROUP BY 1),
          s12 AS (SELECT project_number pn, COUNT(*) n12, SUM(actual_worth) v12, AVG(meter_sale_price) psm12,
                    SUM(CASE WHEN instance_date>=? THEN 1 ELSE 0 END) n90
-                 FROM transaction_ WHERE trans_group_en='Sales' AND instance_date>=? GROUP BY 1),
+                 FROM transaction_ WHERE trans_group_en='Sales' AND ${HOME} AND instance_date>=? GROUP BY 1),
          sp AS (SELECT project_number pn, COUNT(*) nprev FROM transaction_ WHERE trans_group_en='Sales' AND instance_date>=? AND instance_date<? GROUP BY 1),
          m12 AS (SELECT project_number pn, COUNT(*) m12 FROM transaction_ WHERE trans_group_en='Mortgages' AND instance_date>=? GROUP BY 1),
          bs AS (SELECT project_number pn,
@@ -87,7 +101,8 @@ function issuerRows(db: any, devs: string[], balanceSheet: string) {
       m12.m12 mortgages_12m, rs.rn resales_24m, rs.rloss resales_at_loss, rs.rchg avg_resale_change_pct, rs.rhold avg_hold_days,
       p.escrow_agent_en escrow_agent, sa.first_sale, sa.last_sale, p.project_start_date project_start,
       CASE WHEN ol.status IN ('ACTIVE','PENDING','NOT_STARTED','CONDITIONAL_ACTIVATING') THEN 1 ELSE 0 END is_live,
-      IFNULL(bs.ready_bs,0) ready_sales_since_bs, IFNULL(bs.mort_bs,0) mortgages_since_bs, cap.basis capacity_basis
+      IFNULL(bs.ready_bs,0) ready_sales_since_bs, IFNULL(bs.mort_bs,0) mortgages_since_bs, cap.basis capacity_basis,
+      IFNULL(sa.n_parcel,0) parcel_sales, IFNULL(sa.v_parcel,0) parcel_value_aed
     FROM project p
     -- Home capacity (14 Sep 2026): the register counts a villa community's homes as PLOTS. Sobha Reserve is
     -- 339 lands, 0 units, 0 villas; capped at "units" its 383 sales were worth nothing. Capacity is

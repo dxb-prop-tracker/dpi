@@ -178,6 +178,11 @@ function migrate(db: Database.Database) {
   const txCols = (db.prepare(`PRAGMA table_info(transaction_)`).all() as any[]).map(c => c.name);
   if (!txCols.includes('tx_key')) db.exec(`ALTER TABLE transaction_ ADD COLUMN tx_key TEXT`);
   if (!txCols.includes('feed_date')) db.exec(`ALTER TABLE transaction_ ADD COLUMN feed_date TEXT`);
+  // lands (14 Sep 2026): the register counts a villa community's homes as PLOTS (no_of_lands / CNT_LAND) —
+  // Sobha Reserve is 339 lands, 0 units, 0 villas. A project's home capacity is units + villas, or the
+  // plots where both are zero; without this column a villa developer's whole book capped to nothing.
+  const prCols = (db.prepare(`PRAGMA table_info(project)`).all() as any[]).map(c => c.name);
+  if (!prCols.includes('lands')) db.exec(`ALTER TABLE project ADD COLUMN lands INTEGER`);
   db.exec(`CREATE INDEX IF NOT EXISTS ix_tx_feed ON transaction_(feed_date)`);
 
   // Vintage backfill: sales added by the API refresh carry their run date in the id ('…#a20260903…').

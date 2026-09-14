@@ -92,7 +92,7 @@ async function main() {
   const db = openDb();
   const known = db.prepare(`SELECT 1 FROM project WHERE project_number=?`);
   const slugTaken = db.prepare(`SELECT 1 FROM project WHERE area_slug=? AND slug=? AND project_number<>?`);
-  const insProj = db.prepare(`INSERT OR IGNORE INTO project(project_number,name_en,slug,area_name_en,area_slug,developer_number,master_project_en,escrow_agent_en,project_start_date,project_value,units,villas,buildings) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const insProj = db.prepare(`INSERT OR IGNORE INTO project(project_number,name_en,slug,area_name_en,area_slug,developer_number,master_project_en,escrow_agent_en,project_start_date,project_value,units,villas,buildings,lands) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insDev = db.prepare(`INSERT OR IGNORE INTO developer(developer_number,name_en,slug) VALUES(?,?,?)`);
   const insObs = db.prepare(`INSERT OR IGNORE INTO project_observation(project_number,observed_at,status,percent_completed,completion_date,source) VALUES(?,?,?,?,?,?)`);
   const insSeen = db.prepare(`INSERT OR IGNORE INTO vintage(kind,id,first_seen) VALUES('project',?,?)`);
@@ -109,7 +109,7 @@ async function main() {
         // take the gateway's count only while the tower is unfinished, and leave it blank otherwise.
         const finished = String(r.PROJECT_STATUS ?? '').toUpperCase() === 'FINISHED';
         insProj.run(pn, name, slug, area, areaSlug, dev, r.MASTER_PROJECT_EN || null, null, iso(r.START_DATE), r.PROJECT_VALUE ?? null,
-          finished ? null : (r.CNT_UNIT ?? null), finished ? null : (r.CNT_VILLA ?? null), r.CNT_BUILDING ?? null);
+          finished ? null : (r.CNT_UNIT ?? null), finished ? null : (r.CNT_VILLA ?? null), r.CNT_BUILDING ?? null, finished ? null : (r.CNT_LAND ?? null));
         insSeen.run(pn, today); newProjects++;
       }
       // The reading is dated by the register's own inspection date — the day an inspector certified

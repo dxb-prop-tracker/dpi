@@ -48,6 +48,7 @@ const M: Record<'projects' | 'transactions' | 'rents' | 'developers' | 'service_
     project_value: ['PROJECT_VALUE', 'project_value'],
     units: ['CNT_UNIT', 'no_of_units'],
     villas: ['CNT_VILLA', 'no_of_villas'],
+    lands: ['CNT_LAND', 'no_of_lands'],
     buildings: ['CNT_BUILDING', 'no_of_buildings'],
   },
   transactions: {
@@ -179,9 +180,10 @@ async function main() {
   if (h) {
     const { found: f } = resolveMap(h, M.projects);
     const upDev = db.prepare(`INSERT INTO developer(developer_number,name_en,slug) VALUES(?,?,?) ON CONFLICT(developer_number) DO UPDATE SET name_en=excluded.name_en`);
-    const upProj = db.prepare(`INSERT INTO project(project_number,name_en,slug,area_name_en,area_slug,developer_number,master_project_en,escrow_agent_en,project_start_date,project_value,units,villas,buildings)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_number) DO UPDATE SET name_en=excluded.name_en, area_name_en=excluded.area_name_en, area_slug=excluded.area_slug, developer_number=excluded.developer_number,
-      project_value=COALESCE(excluded.project_value,project.project_value), units=COALESCE(excluded.units,project.units)`);
+    const upProj = db.prepare(`INSERT INTO project(project_number,name_en,slug,area_name_en,area_slug,developer_number,master_project_en,escrow_agent_en,project_start_date,project_value,units,villas,buildings,lands)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_number) DO UPDATE SET name_en=excluded.name_en, area_name_en=excluded.area_name_en, area_slug=excluded.area_slug, developer_number=excluded.developer_number,
+      project_value=COALESCE(excluded.project_value,project.project_value), units=COALESCE(excluded.units,project.units),
+      villas=COALESCE(excluded.villas,project.villas), lands=COALESCE(excluded.lands,project.lands)`);
     const slugTaken = db.prepare(`SELECT 1 FROM project WHERE area_slug=? AND slug=? AND project_number<>?`);
     const projKnown = db.prepare(`SELECT 1 FROM project WHERE project_number=?`);
     const projSeen = db.prepare(`INSERT OR IGNORE INTO vintage(kind,id,first_seen) VALUES('project',?,?)`);
@@ -205,7 +207,7 @@ async function main() {
         let slug = slugify(name) || pn; const areaSlug = slugify(area) || 'unknown';
         const clash = slugTaken.get(areaSlug, slug, pn); if (clash) slug = `${slug}-${pn}`;
         upProj.run(pn, name, slug, area, areaSlug, dev, g(r, f, 'master_project_en') || null, g(r, f, 'escrow') || null,
-          iso(g(r, f, 'project_start_date')), num(g(r, f, 'project_value')), num(g(r, f, 'units')), num(g(r, f, 'villas')), num(g(r, f, 'buildings')));
+          iso(g(r, f, 'project_start_date')), num(g(r, f, 'project_value')), num(g(r, f, 'units')), num(g(r, f, 'villas')), num(g(r, f, 'buildings')), num(g(r, f, 'lands')));
         // Planned end date is what slips; actual completion date replaces it once the project finishes.
         const completion = iso(g(r, f, 'completion_date')) || iso(g(r, f, 'planned_end_date'));
         // Date the observation by when the REGISTER says the data was extracted (load_timestamp),

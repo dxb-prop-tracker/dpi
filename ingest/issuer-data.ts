@@ -41,7 +41,7 @@ const COLS = ['project_number', 'project', 'area', 'status', 'certified_pct', 'r
   'last_read', 'units', 'sold_units', 'avg_ticket_aed', 'offplan_sales_all', 'offplan_value_aed', 'all_sales',
   'sales_12m', 'value_12m_aed', 'sales_prior_12m', 'sales_90d', 'avg_psm_12m', 'mortgages_12m',
   'resales_24m', 'resales_at_loss', 'avg_resale_change_pct', 'avg_hold_days', 'escrow_agent',
-  'first_sale', 'last_sale', 'project_start', 'is_live', 'ready_sales_since_bs', 'mortgages_since_bs', 'reading_current'];
+  'first_sale', 'last_sale', 'project_start', 'is_live', 'ready_sales_since_bs', 'mortgages_since_bs', 'reading_current', 'capacity_basis'];
 
 // A register reading counts as current when it was taken this year. The data.dubai API load is
 // October-2025 content (see ingest-dld.ts), so a project whose latest reading is that load has
@@ -80,15 +80,24 @@ function issuerRows(db: any, devs: string[], balanceSheet: string) {
                 FROM resale_pair WHERE sold_on>=? AND ambiguity=0 AND NOT (ABS(change_pct)<0.0001 AND hold_days<60) GROUP BY 1)
     SELECT p.project_number, p.name_en project, p.area_name_en area, ol.status, ol.pct certified_pct,
       ol.cd registered_completion, of_.first_cd first_seen_completion, ol.observed_at last_read,
-      p.units, MIN(IFNULL(p.units, sa.n_off), IFNULL(sa.n_off,0)) sold_units,
+      cap.homes units, MIN(IFNULL(cap.homes, sa.n_off), IFNULL(sa.n_off,0)) sold_units,
       CASE WHEN sa.n_off>0 THEN sa.v_off/sa.n_off END avg_ticket_aed,
       sa.n_off offplan_sales_all, sa.v_off offplan_value_aed, sa.n_all all_sales,
       s12.n12 sales_12m, s12.v12 value_12m_aed, sp.nprev sales_prior_12m, s12.n90 sales_90d, s12.psm12 avg_psm_12m,
       m12.m12 mortgages_12m, rs.rn resales_24m, rs.rloss resales_at_loss, rs.rchg avg_resale_change_pct, rs.rhold avg_hold_days,
       p.escrow_agent_en escrow_agent, sa.first_sale, sa.last_sale, p.project_start_date project_start,
       CASE WHEN ol.status IN ('ACTIVE','PENDING','NOT_STARTED','CONDITIONAL_ACTIVATING') THEN 1 ELSE 0 END is_live,
-      IFNULL(bs.ready_bs,0) ready_sales_since_bs, IFNULL(bs.mort_bs,0) mortgages_since_bs
+      IFNULL(bs.ready_bs,0) ready_sales_since_bs, IFNULL(bs.mort_bs,0) mortgages_since_bs, cap.basis capacity_basis
     FROM project p
+    -- Home capacity (14 Sep 2026): the register counts a villa community's homes as PLOTS. Sobha Reserve is
+    -- 339 lands, 0 units, 0 villas; capped at "units" its 383 sales were worth nothing. Capacity is
+    -- units + villas, or the plots where both are zero (a tower's single plot never wins: it has units).
+    LEFT JOIN (SELECT project_number pn,
+                 CASE WHEN IFNULL(units,0)+IFNULL(villas,0)>0 THEN IFNULL(units,0)+IFNULL(villas,0)
+                      WHEN IFNULL(lands,0)>0 THEN lands ELSE NULL END homes,
+                 CASE WHEN IFNULL(units,0)>0 AND IFNULL(villas,0)>0 THEN 'units+villas' WHEN IFNULL(units,0)>0 THEN 'units'
+                      WHEN IFNULL(villas,0)>0 THEN 'villas' WHEN IFNULL(lands,0)>0 THEN 'plots' ELSE '' END basis
+               FROM project) cap ON cap.pn=p.project_number
     LEFT JOIN ol ON ol.pn=p.project_number LEFT JOIN of_ ON of_.pn=p.project_number
     LEFT JOIN sa ON sa.pn=p.project_number LEFT JOIN s12 ON s12.pn=p.project_number LEFT JOIN sp ON sp.pn=p.project_number
     LEFT JOIN m12 ON m12.pn=p.project_number LEFT JOIN bs ON bs.pn=p.project_number LEFT JOIN rs ON rs.pn=p.project_number

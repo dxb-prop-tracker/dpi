@@ -70,8 +70,11 @@ function loadRsi() {
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
   const toMap = (pts: any[]) => new Map<string, number>(pts.filter(p => !p.thin).map(p => [p.quarter, p.index]));
   return {
-    market: toMap(j.market),
-    areas: new Map<string, Map<string, number>>(j.areas.map((a: any) => [a.area, toMap(a.points)])),
+    // The valuation prices apartments (comps are same building + bedrooms), so it carries them on the
+    // apartment sub-index where the index publishes one (v2.0); the all-homes market line includes
+    // villas, which have moved about twice as much since 2012 and would over-carry a flat.
+    market: toMap(j.apartmentsRegistered?.points ?? j.apartments?.points ?? j.market),
+    areas: new Map<string, Map<string, number>>((j.apartmentsRegistered?.areas ?? j.areas).map((a: any) => [a.area, toMap(a.points)])),
   };
 }
 const quarterKey = (ym: string) => `${ym.slice(0, 4)}Q${Math.floor((Number(ym.slice(5, 7)) - 1) / 3) + 1}`;

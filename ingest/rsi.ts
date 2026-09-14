@@ -37,9 +37,13 @@ const MAX_LOG_MOVE = 1.6;         // about 5x either way
 const MIN_AREA_PAIRS = 400;       // below this an area series is noise dressed as a number
 const MIN_PERIOD_PAIRS = 15;      // periods thinner than this are published but flagged
 const RIDGE = 1e-6;
-const VERSION = '1.0';
+const VERSION = '2.0';
+const REVISIONS = [
+  { version: '2.0', date: '2026-09-14', change: 'Universe widened from apartments in registered projects to ALL homes: villas included, and homes without a register project number (12.5% of sales, largely the older villa communities) keyed on area and building. Developer preliminary sales ("Delayed Sell") and payment-plan sales are no longer legs. Apartment and villa sub-indices published beside the market series. Found by a rule-by-rule cross-check against an independent implementation (tests/rsi_decompose.py): v1.0 understated the 2026 level by about a third, entirely through the universe, not the arithmetic.' },
+  { version: '1.0', date: '2026-09-11', change: 'First publication: apartments in registered projects, both legs registered as Existing Properties.' },
+];
 
-type Pair = { bought_on: string; sold_on: string; bought_for: number; sold_for: number; area: string };
+type Pair = { bought_on: string; sold_on: string; bought_for: number; sold_for: number; area: string; ptype: string; pn: string | null };
 
 const quarterOf = (d: string) => (Number(d.slice(0, 4)) - BASE_YEAR) * 4 + Math.floor((Number(d.slice(5, 7)) - 1) / 3);
 const label = (q: number) => `${BASE_YEAR + Math.floor(q / 4)}Q${(q % 4) + 1}`;
@@ -102,9 +106,11 @@ function fit(pairs: Pair[], lo: number, hi: number) {
 
 function main() {
   const db = openDb();
-  const pairs = db.prepare(`SELECT bought_on, sold_on, bought_for, sold_for, area_name_en area
+  // Both legs are a completed home changing hands ('Sell'): no off-plan leg, no preliminary sale, no
+  // payment-plan registration — see ingest/derive.ts for why each of those is not a market price on its date.
+  const pairs = db.prepare(`SELECT bought_on, sold_on, bought_for, sold_for, area_name_en area, property_type ptype, project_number pn
     FROM resale_pair
-    WHERE bought_reg='Existing Properties' AND sold_reg='Existing Properties'
+    WHERE bought_proc='Sell' AND sold_proc='Sell'
       AND bought_for>50000 AND sold_for>50000 AND hold_days>=${MIN_HOLD_DAYS}
       AND bought_on>='${BASE_YEAR}-01-01' AND sold_on IS NOT NULL`).all() as Pair[];
   if (pairs.length < 500) { console.log(`only ${pairs.length} pairs — not publishing an index`); return; }
@@ -112,6 +118,13 @@ function main() {
   const qs = pairs.flatMap(p => [quarterOf(p.bought_on), quarterOf(p.sold_on)]);
   const lo = Math.min(...qs), hi = Math.max(...qs);
   const market = fit(pairs, lo, hi);
+  const apartments = fit(pairs.filter(p => p.ptype === 'Unit'), lo, hi);
+  const villas = fit(pairs.filter(p => p.ptype === 'Villa'), lo, hi);
+  // The valuation's comparables all sit in registered projects (its comps are same building, same
+  // bedrooms, and a building is known through its project). Carrying them on a series that includes
+  // the older unregistered towers over-carried them: median error 5.4% → 6.2% in the backtest. So the
+  // index also publishes the v1.0-shaped series — apartments in registered projects — for that use.
+  const apartmentsRegistered = fit(pairs.filter(p => p.ptype === 'Unit' && p.pn), lo, hi);
 
   const byArea = new Map<string, Pair[]>();
   for (const p of pairs) {
@@ -119,6 +132,14 @@ function main() {
     (byArea.get(p.area) ?? byArea.set(p.area, []).get(p.area)!).push(p);
   }
   const areas = [...byArea.entries()]
+    .filter(([, v]) => v.length >= MIN_AREA_PAIRS)
+    .map(([area, v]) => ({ area, pairs: v.length, ...fit(v, lo, hi) }))
+    .sort((a, b) => b.pairs - a.pairs);
+  // Area series for apartments in registered projects only — what the valuation carries its
+  // comparables on. An area series that mixes villas and apartments (Dubai Hills, the Ranches)
+  // carries a flat on the villa move; this one does not.
+  const areasApartments = [...byArea.entries()]
+    .map(([area, v]) => [area, v.filter(p => p.ptype === 'Unit' && p.pn)] as const)
     .filter(([, v]) => v.length >= MIN_AREA_PAIRS)
     .map(([area, v]) => ({ area, pairs: v.length, ...fit(v, lo, hi) }))
     .sort((a, b) => b.pairs - a.pairs);
@@ -133,9 +154,11 @@ function main() {
     generatedAt: new Date().toISOString(),
     base: { quarter: label(lo), value: 100 },
     method: 'Bailey-Muth-Nourse (1963). log(second price / first price) regressed on period dummies, +1 at the period of the second sale and -1 at the first; the fitted coefficients are the log index, the base period pinned at zero and scaled to 100.',
-    universe: `Homes that sold at least twice, both sales registered as Existing Properties, held at least ${MIN_HOLD_DAYS} days, both prices above AED 50,000, first sale from ${BASE_YEAR}.`,
+    universe: `Every home — apartment or villa, in a registered project or not — that sold at least twice as a completed home (register procedure "Sell" on both sides), held at least ${MIN_HOLD_DAYS} days, both prices above AED 50,000, first sale from ${BASE_YEAR}. "The same home" is area + building (or project where the register carries no building) + property type + rooms + floor area; an identity with more than 12 sales is dropped as ambiguous.`,
+    revisions: REVISIONS,
     exclusions: [
       'Off-plan on either side: a home bought off the plan gained partly because it got built, which is a construction story, not a price one.',
+      'Developer preliminary sales ("Delayed Sell") and payment-plan registrations on either side: a contract price registered on a later date, not a market price on that date.',
       `Holds under ${MIN_HOLD_DAYS} days: two sales weeks apart are usually one transaction settling, a related-party transfer or a correction.`,
       `Price ratios beyond ${Math.round(Math.exp(MAX_LOG_MOVE))}x either way: a mismatched unit, not a market move.`,
       'Pairs whose two sales fall in the same quarter: they carry no information about the change between quarters.',
@@ -154,6 +177,13 @@ function main() {
       fromTroughPct: Math.round((last.index / trough.index - 1) * 1000) / 10,
     },
     market: market.points,
+    // Two markets under one name: since 2012 apartments have risen about 1.2x and villas about 2.3x.
+    // A single "Dubai" line hides that, so both are published beside it, on the same base.
+    apartments: { pairsUsed: apartments.used, points: apartments.points },
+    villas: { pairsUsed: villas.used, points: villas.points },
+    apartmentsRegistered: { pairsUsed: apartmentsRegistered.used, points: apartmentsRegistered.points,
+      note: 'Apartments in registered projects only — the v1.0 universe. Published for the valuation, whose comparables all sit in registered projects; not a market headline.',
+      areas: areasApartments },
     areas,
   };
 
@@ -162,6 +192,10 @@ function main() {
   fs.writeFileSync(path.join(OUT, 'rsi-market.csv'),
     'quarter,index,pairs_sold,pairs_touching,thin\n' +
     market.points.map(p => `${p.quarter},${p.index},${p.pairsSold},${p.pairsTouching},${p.thin ? 1 : 0}`).join('\n') + '\n');
+  for (const [name, s] of [['rsi-apartments.csv', apartments], ['rsi-villas.csv', villas]] as const)
+    fs.writeFileSync(path.join(OUT, name),
+      'quarter,index,pairs_sold,pairs_touching,thin\n' +
+      s.points.map(p => `${p.quarter},${p.index},${p.pairsSold},${p.pairsTouching},${p.thin ? 1 : 0}`).join('\n') + '\n');
   fs.writeFileSync(path.join(OUT, 'rsi-areas.csv'),
     'area,quarter,index,pairs_sold,thin\n' +
     areas.flatMap(a => a.points.map(p => `"${a.area.replace(/"/g, '""')}",${p.quarter},${p.index},${p.pairsSold},${p.thin ? 1 : 0}`)).join('\n') + '\n');
@@ -182,6 +216,8 @@ function main() {
     `${market.points.length} quarters from ${out.base.quarter}`);
   console.log(`  latest ${last.quarter} ${last.index} · peak ${peak.quarter} ${peak.index} · trough ${trough.quarter} ${trough.index}`);
   console.log(`  ${out.headline.fromPeakPct}% from peak, ${out.headline.fromTroughPct >= 0 ? '+' : ''}${out.headline.fromTroughPct}% from trough`);
+  const lastOf = (s: { points: { quarter: string; index: number }[] }) => s.points[s.points.length - 1];
+  console.log(`  apartments ${lastOf(apartments).quarter} ${lastOf(apartments).index} on ${apartments.used.toLocaleString()} pairs · villas ${lastOf(villas).index} on ${villas.used.toLocaleString()} pairs`);
   console.log(`  ${areas.length} area series published (>=${MIN_AREA_PAIRS} pairs); crosswalk ${cross.length.toLocaleString()} projects`);
 }
 

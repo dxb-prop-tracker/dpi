@@ -13,7 +13,8 @@ db.exec(`
     project_number TEXT, area_name_en TEXT, building_name_en TEXT, rooms_en TEXT, procedure_area REAL,
     bought_on TEXT, bought_for REAL, bought_reg TEXT,
     sold_on TEXT, sold_for REAL, sold_reg TEXT,
-    hold_days INTEGER, change_pct REAL, ambiguity INTEGER   -- ambiguity = other sales of the same identity in the window
+    hold_days INTEGER, change_pct REAL, ambiguity INTEGER,  -- ambiguity = other sales of the same identity in the window
+    property_type TEXT, bought_proc TEXT, sold_proc TEXT     -- v2.0 (14 Sep 2026): Unit or Villa; the register procedure on each leg
   );
   CREATE INDEX IF NOT EXISTS ix_rp_project ON resale_pair(project_number, sold_on);
   CREATE INDEX IF NOT EXISTS ix_rp_area ON resale_pair(area_name_en, sold_on);
@@ -23,21 +24,38 @@ db.exec(`
   );
   DELETE FROM resale_pair; DELETE FROM delay_flag;
 `);
+for (const c of ['property_type TEXT', 'bought_proc TEXT', 'sold_proc TEXT'])
+  try { db.exec(`ALTER TABLE resale_pair ADD COLUMN ${c}`); } catch { /* already there */ }
 
 // ---- 1. resale pairs ----
+// v2.0 (14 Sep 2026). "The same home" is area + building + property type + rooms + size; a home
+// with no building name is keyed on its project instead. Villas are in, and so are homes with no
+// register project number (12.5% of sales — the older villa communities, which never had one).
+// Both were missing from v1.0, and both mattered: villas have risen about 2.3x since 2012 against
+// 1.2x for apartments, so an apartments-in-registered-projects index read as a market index
+// understated Dubai by a third (tests/rsi_decompose.py has the proof, rule by rule).
+// Legs are 'Sell' (a completed home changing hands) and 'Sell - Pre registration' (an off-plan
+// purchase, kept for the cohort tables). 'Delayed Sell' is a developer's PRELIMINARY sale — a
+// contract price registered on a later date — and 'Sale On Payment Plan' likewise; neither is a
+// market price on its date, so neither is a leg (Ali's finding, 13 Sep 2026).
 const rows = db.prepare(`
-  SELECT project_number, area_name_en, building_name_en, rooms_en, procedure_area, instance_date, actual_worth, reg_type_en
+  SELECT project_number, area_name_en, building_name_en, rooms_en, procedure_area, instance_date, actual_worth, reg_type_en,
+         property_type_en, procedure_name_en,
+         COALESCE(NULLIF(TRIM(building_name_en),''), 'project:' || COALESCE(project_number,'')) AS bkey
   FROM transaction_
-  WHERE trans_group_en='Sales' AND procedure_name_en IN ('Sell','Sell - Pre registration','Delayed Sell','Sale On Payment Plan') AND property_type_en='Unit' AND project_number IS NOT NULL AND procedure_area>10 AND actual_worth>150000
+  WHERE trans_group_en='Sales' AND procedure_name_en IN ('Sell','Sell - Pre registration')
+    AND property_type_en IN ('Unit','Villa') AND procedure_area>10 AND actual_worth>150000
     AND instance_date>='2010-01-01' AND rooms_en IS NOT NULL AND rooms_en<>''
-  ORDER BY project_number, building_name_en, rooms_en, procedure_area, instance_date`).all() as any[];
-const ins = db.prepare(`INSERT INTO resale_pair(project_number,area_name_en,building_name_en,rooms_en,procedure_area,bought_on,bought_for,bought_reg,sold_on,sold_for,sold_reg,hold_days,change_pct,ambiguity) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    AND (NULLIF(TRIM(building_name_en),'') IS NOT NULL OR project_number IS NOT NULL)
+  ORDER BY area_name_en, bkey, property_type_en, rooms_en, procedure_area, instance_date`).all() as any[];
+const ins = db.prepare(`INSERT INTO resale_pair(project_number,area_name_en,building_name_en,rooms_en,procedure_area,bought_on,bought_for,bought_reg,sold_on,sold_for,sold_reg,hold_days,change_pct,ambiguity,property_type,bought_proc,sold_proc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 let pairs = 0, losses = 0;
+const sameHome = (x: any, y: any) => x.area_name_en === y.area_name_en && x.bkey === y.bkey && x.property_type_en === y.property_type_en && x.rooms_en === y.rooms_en && x.procedure_area === y.procedure_area;
 db.transaction(() => {
   let i = 0;
   while (i < rows.length) {
     let j = i;
-    while (j < rows.length && rows[j].project_number === rows[i].project_number && rows[j].building_name_en === rows[i].building_name_en && rows[j].rooms_en === rows[i].rooms_en && rows[j].procedure_area === rows[i].procedure_area) j++;
+    while (j < rows.length && sameHome(rows[j], rows[i])) j++;
     const grp = rows.slice(i, j);
     // Identities with many sales (e.g. 40 identical studios) are ambiguous; cap and record the group size.
     if (grp.length >= 2 && grp.length <= 12) {
@@ -47,7 +65,8 @@ db.transaction(() => {
         if (days < 30) continue; // same-day / bulk transfers are not resales
         const chg = b.actual_worth / a.actual_worth - 1;
         if (chg < -0.6 || chg > 3) continue; // outside a plausible resale range: partial-value registrations, data errors
-        ins.run(a.project_number, a.area_name_en, a.building_name_en, a.rooms_en, a.procedure_area, a.instance_date, a.actual_worth, a.reg_type_en, b.instance_date, b.actual_worth, b.reg_type_en, days, chg, grp.length - 2);
+        ins.run(a.project_number ?? b.project_number, a.area_name_en, a.building_name_en, a.rooms_en, a.procedure_area, a.instance_date, a.actual_worth, a.reg_type_en, b.instance_date, b.actual_worth, b.reg_type_en, days, chg, grp.length - 2,
+          a.property_type_en, a.procedure_name_en, b.procedure_name_en);
         pairs++; if (chg < 0) losses++;
       }
     }

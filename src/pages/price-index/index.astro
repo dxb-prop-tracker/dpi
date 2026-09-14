@@ -25,13 +25,29 @@ const m1 = (v: number | null | undefined, dp = 1) => v == null ? '—' : v.toFix
 
     <div class="chart" set:html={lineChart(pts.map((p: any) => ({ m: p.quarter, psm: p.index, n: p.pairsSold })), { title: `Index, ${r.base.quarter} = 100`, unit: '' })} />
 
-    <p class="reads"><b>What this shows.</b> How much the price of the same home has changed, quarter by quarter, since {r.base.quarter}. <b>How to read it.</b> This is not the same as the average price paid. A median moves when the <em>mix</em> of what traded moves — a quarter in which mostly large or mostly cheap homes happened to sell will bend it, without any home changing in value. A repeat-sales pair has the home's own size, floor, view and finish on both sides of the comparison, where they cancel. When this index and a median disagree, the difference is composition.</p>
+    {r.apartments && r.villas && <>
+      <h3 class="sub">Two markets under one name</h3>
+      <div class="scroll"><table>
+        <thead><tr><th>Series</th><th class="num">Latest</th><th class="num">Since {r.base.quarter}</th><th class="num">Pairs</th></tr></thead>
+        <tbody>
+          <tr><td>All homes (the market line above)</td><td class="num">{m1(r.headline.latest.index)}</td><td class="num">{m1(r.headline.latest.index - 100)}%</td><td class="num">{n(r.pairsUsed)}</td></tr>
+          <tr><td>Apartments</td><td class="num">{m1(r.apartments.points[r.apartments.points.length - 1].index)}</td><td class="num">{m1(r.apartments.points[r.apartments.points.length - 1].index - 100)}%</td><td class="num">{n(r.apartments.pairsUsed)}</td></tr>
+          <tr><td>Villas</td><td class="num">{m1(r.villas.points[r.villas.points.length - 1].index)}</td><td class="num">{m1(r.villas.points[r.villas.points.length - 1].index - 100)}%</td><td class="num">{n(r.villas.pairsUsed)}</td></tr>
+        </tbody>
+      </table></div>
+      <div class="chart" set:html={lineChart(r.apartments.points.map((p: any) => ({ m: p.quarter, psm: p.index, n: p.pairsSold })), { title: `Apartments, ${r.base.quarter} = 100`, unit: '' })} />
+      <div class="chart" set:html={lineChart(r.villas.points.map((p: any) => ({ m: p.quarter, psm: p.index, n: p.pairsSold })), { title: `Villas, ${r.base.quarter} = 100`, unit: '' })} />
+    </>}
+
+    <p class="reads"><b>What this shows.</b> How much the price of the same home has changed, quarter by quarter, since {r.base.quarter}. Apartments and villas are shown separately because they have not moved together: a single Dubai line is an average of two different markets, and which one you are in matters more than the average. <b>How to read it.</b> This is not the same as the average price paid. A median moves when the <em>mix</em> of what traded moves — a quarter in which mostly large or mostly cheap homes happened to sell will bend it, without any home changing in value. A repeat-sales pair has the home's own size, floor, view and finish on both sides of the comparison, where they cancel. When this index and a median disagree, the difference is composition.</p>
 
     <section class="qs">
       <h2><span class="no">1</span>Download it</h2>
       <p class="why">The series, the area series, and a crosswalk giving every project a stable identifier so you can join to it and keep joining after a display name is cleaned up. Free with attribution: "Dubai Repeat-Sales Index v{r.version}, Dubai Property Intelligence".</p>
       <div class="dl">
         <a class="dlbtn" href="/data/index/rsi-market.csv" download>Market series (CSV)</a>
+        <a class="dlbtn" href="/data/index/rsi-apartments.csv" download>Apartments (CSV)</a>
+        <a class="dlbtn" href="/data/index/rsi-villas.csv" download>Villas (CSV)</a>
         <a class="dlbtn" href="/data/index/rsi-areas.csv" download>Area series (CSV)</a>
         <a class="dlbtn" href="/data/index/crosswalk.csv" download>Project crosswalk (CSV)</a>
         <a class="dlbtn ghost" href="/data/index/rsi.json" download>Everything (JSON)</a>
@@ -45,6 +61,10 @@ const m1 = (v: number | null | undefined, dp = 1) => v == null ? '—' : v.toFix
       <h3 class="sub">What it cannot tell you</h3>
       <ul class="reasons">{r.limits.map((e: string) => <li>{e}</li>)}</ul>
       <p class="note">A frozen version matters: if the method changes, the version changes, and the old series stays downloadable. Anyone who cited v{r.version} can still reproduce what they cited.</p>
+      {r.revisions && <>
+        <h3 class="sub">Revisions</h3>
+        <ul class="reasons">{r.revisions.map((v: any) => <li><b>v{v.version}</b> ({v.date}) — {v.change}</li>)}</ul>
+      </>}
 
       <h2><span class="no">3</span>By neighbourhood</h2>
       <p class="why">{r.areas.length} areas have enough repeat sales to carry their own series. Areas below the threshold are deliberately absent rather than shown thin.</p>

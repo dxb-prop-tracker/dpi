@@ -57,9 +57,14 @@ function issuerRows(db: any, devs: string[], balanceSheet: string) {
     WITH ol AS (SELECT o.project_number pn, o.status, o.percent_completed pct, o.completion_date cd, o.observed_at
                 FROM project_observation o WHERE o.id=(SELECT id FROM project_observation x WHERE x.project_number=o.project_number ORDER BY observed_at DESC, id DESC LIMIT 1)),
          of_ AS (SELECT project_number pn, MIN(completion_date) first_cd FROM project_observation WHERE completion_date IS NOT NULL GROUP BY 1),
+         -- A developer's sale is one of three register procedures, not a registration type. "Delayed Sell"
+         -- (Arabic: preliminary sale) is how a developer registers villa and plot sales and payment-plan
+         -- sales of finished homes; the register types those rows 'Existing', so counting developer sales
+         -- by reg_type missed them — 1,075 Sobha sales worth AED 8.8bn since January 2025 (Ali's finding,
+         -- 13 Sep 2026). 'Sell' alone is a completed home changing hands.
          sa AS (SELECT project_number pn, COUNT(*) n_all, MIN(instance_date) first_sale, MAX(instance_date) last_sale,
-                  SUM(CASE WHEN reg_type_en='Off-Plan Properties' THEN 1 ELSE 0 END) n_off,
-                  SUM(CASE WHEN reg_type_en='Off-Plan Properties' THEN actual_worth ELSE 0 END) v_off
+                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') THEN 1 ELSE 0 END) n_off,
+                  SUM(CASE WHEN procedure_name_en IN ('Sell - Pre registration','Delayed Sell','Sale On Payment Plan') THEN actual_worth ELSE 0 END) v_off
                 FROM transaction_ WHERE trans_group_en='Sales' GROUP BY 1),
          s12 AS (SELECT project_number pn, COUNT(*) n12, SUM(actual_worth) v12, AVG(meter_sale_price) psm12,
                    SUM(CASE WHEN instance_date>=? THEN 1 ELSE 0 END) n90
@@ -67,7 +72,7 @@ function issuerRows(db: any, devs: string[], balanceSheet: string) {
          sp AS (SELECT project_number pn, COUNT(*) nprev FROM transaction_ WHERE trans_group_en='Sales' AND instance_date>=? AND instance_date<? GROUP BY 1),
          m12 AS (SELECT project_number pn, COUNT(*) m12 FROM transaction_ WHERE trans_group_en='Mortgages' AND instance_date>=? GROUP BY 1),
          bs AS (SELECT project_number pn,
-                  SUM(CASE WHEN trans_group_en='Sales' AND reg_type_en='Existing Properties' AND instance_date>=? THEN 1 ELSE 0 END) ready_bs,
+                  SUM(CASE WHEN trans_group_en='Sales' AND procedure_name_en='Sell' AND instance_date>=? THEN 1 ELSE 0 END) ready_bs,
                   SUM(CASE WHEN trans_group_en='Mortgages' AND instance_date>=? THEN 1 ELSE 0 END) mort_bs
                 FROM transaction_ GROUP BY 1),
          rs AS (SELECT project_number pn, COUNT(*) rn, SUM(CASE WHEN change_pct<0 THEN 1 ELSE 0 END) rloss,

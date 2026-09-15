@@ -81,7 +81,14 @@ for csvfile in "$DATA"/*-register.csv; do
       say "$issuer: REFUSED — this issuer's debt or accounts do not fit the model"; rc_all=1; continue
     fi
   else
-    cp "$WORK/$issuer-data.xlsx" "$out"
+    # B37: a hand-finished template skips issuer_inputs.py, so the new-project-finance input has to
+    # be added on its own — otherwise the one issuer without it is the one it was written for.
+    if python3 scripts/add_new_finance.py "$WORK/$issuer-data.xlsx" "$WORK/$issuer-npf.xlsx" | sed 's/^/  /'; then
+      cp "$WORK/$issuer-npf.xlsx" "$out"
+    else
+      say "$issuer: new-project-finance input not added — workbook published without it"
+      cp "$WORK/$issuer-data.xlsx" "$out"
+    fi
   fi
 
   # The next-quarter sheet, written from the published forecast. Absent it, the workbook is still

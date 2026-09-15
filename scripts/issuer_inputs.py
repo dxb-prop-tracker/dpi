@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import xlsxns
+import issuer_horizons
 
 NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
@@ -257,9 +258,10 @@ def guard_headroom(roots, notes):
         cm = cells(be)
         set_formula(cm, 'B10', 'IF($B$29>0,$C$36,"")')
         set_formula(cm, 'B49', 'IF(OR($C$36="",Dashboard!$F$17=""),"",$C$36-Dashboard!$F$17)')
-        put(cm, 'A3', 'This grid measures headroom against the debt due by 28 February 2027, the date the canonical '
-                      'model was written for. Where this issuer has no debt due by then the grid is blank; the '
-                      'cash test on the Cash flow sheet (section 6) is measured at each of its own maturities.', 's')
+        put(cm, 'A3', 'This grid measures headroom against the debt due by the first horizon named in row 10 — '
+                      "this issuer's own first maturity, not a date carried over from the model it was cut "
+                      'from. Where there is no debt due by then the grid is blank; the cash test on the Cash '
+                      'flow sheet (section 6) is measured at each of its own maturities.', 's')
         notes.append(f'Break-even: {n} grid cells guarded against a zero debt-due denominator')
     dash = roots.get('Dashboard')
     if dash is not None:
@@ -412,6 +414,7 @@ def apply(model, issuer_json, out_path, canon='Binghatti'):
     if 'Cash flow' in roots:
         generalise_cash_flow(roots['Cash flow'], notes)
     guard_headroom(roots, notes)
+    issuer_horizons.add_new_project_finance(roots, notes, cells, put, set_formula)
 
     # ---- Cover ----
     if 'Cover' in roots:
@@ -422,6 +425,14 @@ def apply(model, issuer_json, out_path, canon='Binghatti'):
 
     blobs = {}
     retext(zin, blobs, roots, paths, canon, iss.get('brand') or canon, notes, problems)
+
+    # B37 — the headroom measure runs on THIS issuer's maturities, not the canonical issuer's.
+    # After retext(), so the prose it rewrites is the prose this one sees.
+    bs = iss.get('balanceSheetDate')
+    issuer_horizons.set_horizons(
+        zin, blobs, roots, items,
+        dt.date.fromisoformat(iss['asOf']) if iss.get('asOf') else dt.date.today(),
+        dt.date.fromisoformat(bs) if bs else None, notes, xlsxns, cells, put)
 
     if problems:
         print('REFUSED - nothing written:')

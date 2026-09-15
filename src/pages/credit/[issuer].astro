@@ -60,7 +60,7 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
     <!-- ============================= Dashboard ============================= -->
     <section class="pane on" data-pane="dashboard">
       {iss && <div class="credithead">
-        <div style="font-size:14.5px">{iss.stance.oneLine}</div>
+        {iss.stance?.oneLine && <div style="font-size:14.5px">{iss.stance.oneLine}</div>}
         <dl>
           <div><dt>Ratings</dt><dd>{iss.header.ratings}</dd></div>
           <div><dt>Gross debt</dt><dd>{iss.header.grossDebt}</dd></div>
@@ -80,15 +80,19 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
         <div class="kpi"><div class="v">{share12m == null ? '—' : m1(share12m, 2) + '%'}</div><div class="l">Share of Dubai, by value</div></div>
       </div>
       <p class="reads"><b>What this shows.</b> The developer's live book as the land registry records it, not as the company presents it: how many towers are under way, how much of them is sold, and what the buyers have contracted to pay. <b>How to read it.</b> Contracted value is sold units times the average registered ticket — it is what buyers owe over the life of the projects, not cash in hand. Towers past their filed completion date matter twice over: the final instalment is the largest one, and a date that has slipped once tends to slip again.</p>
-      {iss && <>
+      {/* view / strengths / concerns are OPINION blocks. A dossier written to the editorial rule
+          (nothing negative about a named developer, no verdicts) carries none of them — Emaar is the
+          first one that does not, and until now that crashed the whole build rather than rendering
+          the page the rule intends. Absent means absent: the section simply is not printed. */}
+      {iss?.view && <>
         <h2 class="sub2">What has to be paid, and from what</h2><p>{iss.view.capacity}</p>
         <h2 class="sub2">The refinancing record</h2><p>{iss.view.refinancing}</p>
         <h2 class="sub2">What the documents allow if it cannot</h2><p>{iss.view.restructuring}</p>
-        <div class="two">
-          <div><h3 class="sub">What supports the credit</h3><ul>{iss.strengths.map((s: string) => <li>{s}</li>)}</ul></div>
-          <div><h3 class="sub">What weighs on it</h3><ul>{iss.concerns.map((s: string) => <li>{s}</li>)}</ul></div>
-        </div>
       </>}
+      {iss && (iss.strengths || iss.concerns) && <div class="two">
+        {iss.strengths && <div><h3 class="sub">What supports the credit</h3><ul>{iss.strengths.map((s: string) => <li>{s}</li>)}</ul></div>}
+        {iss.concerns && <div><h3 class="sub">What weighs on it</h3><ul>{iss.concerns.map((s: string) => <li>{s}</li>)}</ul></div>}
+      </div>}
     </section>
 
     <!-- ============================= Simulator ============================= -->
@@ -226,10 +230,14 @@ const m1 = (v: number | null | undefined, dp = 0) => v == null ? '—' : v.toLoc
           <tbody>{[['Revenue','revenue'],['Gross profit','grossProfit'],['EBITDA','ebitda'],['Net profit','netProfit'],['Total assets','totalAssets'],['Cash','cash'],['Escrow','escrow'],['Debt','debt'],['Equity','equity'],['Contract liabilities','contractLiabilities'],['Backlog','backlog'],['Cash from operations','cfo'],['Finance cost','financeCost'],['Dividends','dividends']].map(([label, k]) =>
             <tr><td>{label}</td>{iss.periods.map((p: any) => <td class="num">{m1(p[k as string])}</td>)}</tr>)}</tbody>
         </table></div>
+        {/* Ratios are FACTUAL, not opinion, so a missing block is a gap to fill rather than a
+            rule being followed — it says so on the page instead of leaving a silent hole. */}
         <h3 class="sub">Credit ratios</h3>
-        <div class="scroll"><table><thead><tr><th>Ratio</th><th class="num">FY2025</th><th class="num">H1 2026</th><th>Comment</th></tr></thead>
-          <tbody>{iss.ratios.map((r: any) => <tr><td>{r.label}</td><td class="num">{r.fy2025}</td><td class="num">{r.h1_2026}</td><td class="note">{r.comment}</td></tr>)}</tbody>
-        </table></div>
+        {iss.ratios
+          ? <div class="scroll"><table><thead><tr><th>Ratio</th><th class="num">FY2025</th><th class="num">H1 2026</th><th>Comment</th></tr></thead>
+              <tbody>{iss.ratios.map((r: any) => <tr><td>{r.label}</td><td class="num">{r.fy2025}</td><td class="num">{r.h1_2026}</td><td class="note">{r.comment}</td></tr>)}</tbody>
+            </table></div>
+          : <p class="note">The ratio table is not on file for this issuer yet. The statements above are complete; the ratios are derived from them and have not been cut for this issuer.</p>}
         <p class="reads"><b>What this shows.</b> The company's own numbers, unadjusted, next to the ratios the rating agencies and the covenants actually test. <b>How to read it.</b> Compare the trajectory, not the level: a developer's reported profit follows percentage-of-completion accounting and can rise while cash falls. Cash from operations against finance cost is the harder test.</p>
       </> : <p class="note">No financial detail on file for this issuer yet.</p>}
     </section>

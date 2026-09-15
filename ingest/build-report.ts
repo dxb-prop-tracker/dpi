@@ -10,6 +10,7 @@
 //   npm run report -- --yearly 2026
 //   npm run report -- --backfill           the last 6 months and the last 3 years
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { openDb } from './db';
 import { marketReport, monthEnd, shiftMonths, monthLabel, addDays } from './report-lib';
@@ -135,6 +136,38 @@ for (const [pn, arr] of byProj) {
 }
 progress.sort((a, b) => (a.suspect === b.suspect ? 0 : a.suspect ? 1 : -1) || Math.abs(b.change) - Math.abs(a.change));
 completionChanges.sort((a, b) => b.months - a.months);
+
+// D11 — the register half comes from the ARCHIVE, not from our own accumulated vintage.
+//
+// The market pack goes back to 2008. Our own project vintage starts on 7 September 2026, so a
+// weekly edition built only from it printed "0 progress revisions" — not because nothing moved but
+// because there was nothing to compare against, which is the worst kind of wrong number: a real
+// one that means the opposite of what it says. The register-export container holds one full
+// register workbook per collected day from 24 August, so tools/register_diff.py reads two of them
+// and the edition uses that where it is available. Where it is not, the local vintage stands and
+// the edition says which it used — an edition that cannot say where its own figures came from is
+// not the thing D11 asked for.
+let archive: any = null;
+try {
+  const out = execFileSync('python3', ['tools/register_diff.py', from, to, '--json', '/tmp/.regdiff.json'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  archive = JSON.parse(fs.readFileSync('/tmp/.regdiff.json', 'utf8'));
+  archive.stdoutFirstLine = out.split('\n').find(l => l.trim()) ?? null;
+} catch (e: any) {
+  console.warn(`  register archive unavailable (${String(e.message ?? e).split('\n')[0]}) — the register half falls back to our own vintage, which starts 7 September`);
+}
+if (archive) {
+  const decorate = (r: any) => { const p = pmap.get(String(r.key)); return { ...r, url: p?.slug ? `/dubai/${p.area_slug}/${p.slug}/` : null }; };
+  progress.length = 0; statusChanges.length = 0; completionChanges.length = 0; entered.length = 0;
+  for (const r of archive.progress) progress.push(decorate({ pn: r.key, name: r.name, area: r.area, before: r.before, after: r.after, change: r.change, beforeAt: r.read_before, afterAt: r.read_after, beforeSrc: 'register-export', afterSrc: 'register-export', suspect: false }));
+  for (const r of archive.status) statusChanges.push(decorate({ pn: r.key, name: r.name, area: r.area, from: r.from, to: r.to }));
+  for (const r of archive.dates) completionChanges.push(decorate({ pn: r.key, name: r.name, area: r.area, from: r.was, to: r.now, months: r.months }));
+  for (const r of archive.added) entered.push(decorate({ pn: r.key, name: r.name, area: r.area, developer: r.developer, status: r.status, units: r.units, pct: null }));
+  completionChanges.sort((a, b) => b.months - a.months);
+  console.log(`  register half from the archive: ${archive.window.frm} → ${archive.window.to}, `
+    + `${archive.counts.progress_revisions} revisions, ${archive.counts.status_changes} status changes, `
+    + `${archive.counts.off_scale_percentages} percentages held out as off-scale`);
+}
 const latestAll = [...byProj.entries()].map(([pn, arr]) => latestOf(arr, to)).filter(Boolean);
 const statusMix = (() => { const m = new Map<string, number>(); for (const o of latestAll) m.set(o.status ?? 'Unknown', (m.get(o.status ?? 'Unknown') ?? 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ status: k, n })); })();
 const pctMix = (() => { const b: [string, number, number][] = [['0%', 0, 0.0001], ['1–25%', 0.0001, 25], ['25–50%', 25, 50], ['50–75%', 50, 75], ['75–99%', 75, 99.9999], ['100%', 99.9999, 100.0001]]; const out = b.map(([label, lo, hi]) => ({ bucket: label, n: latestAll.filter(o => o.percent_completed != null && Math.min(100, o.percent_completed) >= lo && Math.min(100, o.percent_completed) < hi).length })); out.push({ bucket: 'not stated', n: latestAll.filter(o => o.percent_completed == null).length }); return out; })();
@@ -160,7 +193,7 @@ const report = {
   },
   sales: { byMonth: salesByMonth, gained: gainedProfile, dated: datedProfile, withdrawn: withdrawnRows.slice(0, 30), withdrawnCount: withdrawnRows.length },
   rents: { gained: rentGainedProfile, dated: rentDatedProfile },
-  register: { total: projects.length, statusMix, pctMix, over100, entered, progress, statusChanges, completionChanges, devsAdded, readings: obsDates, medianReadingAgeDays: r0(median(readingAges)), registerStamp },
+  register: { archive: archive ? { source: 'register-export', readFrom: archive.window.frm, readTo: archive.window.to, offScale: archive.off_scale, counts: archive.counts } : null, total: projects.length, statusMix, pctMix, over100, entered, progress, statusChanges, completionChanges, devsAdded, readings: obsDates, medianReadingAgeDays: r0(median(readingAges)), registerStamp },
   integrity: { runs, totals, txTo, rentTo },
 };
 return report;

@@ -46,7 +46,7 @@ if (P && R) {
   read.push(`${n(dueThisYear.length)} projects (${n(units(dueThisYear))} units) carry a ${thisYear} completion date and ${n(dueLater.length)} are dated ${thisYear + 1} or later${undated.length ? `; ${undated.length} active projects have no date` : ''}.`);
   read.push(`Buyers registered ${n(P.sales.n12)} sales in the last twelve months worth AED ${P.sales.bn12} bn — ${P.sales.sharePct}% of all Dubai sales, ${P.sales.off12Pct}% of them off-plan${P.sales.nPrev ? `, against ${n(P.sales.nPrev)} the year before` : ''}${P.sales.medPsm12 && P.sales.medPsmPrev ? `; the median apartment price in its projects moved from AED ${n(P.sales.medPsmPrev)} to AED ${n(P.sales.medPsm12)} per sqm` : ''}.`);
   if (P.resales.n >= 20) read.push(`${n(P.resales.n)} homes in its projects were resold in the last two years at a median gain of ${signed(P.resales.medianGain, 1)}% after a median hold of ${P.resales.medianHoldMonths} months; ${P.resales.lossPct}% were sold below the price the seller paid.`);
-  if (iss) read.push(`As a bond issuer it is rated ${iss.header.ratings.split('·')[0].trim()}. ${iss.stance.oneLine}`);
+  if (iss) read.push(`As a bond issuer it is rated ${iss.header.ratings.split('·')[0].trim()}.${iss.stance?.oneLine ? ' ' + iss.stance.oneLine : ''}`);
 }
 const title = iss ? `${name} — delivery record, pipeline and credit view` : `${name} — delivery record and pipeline`;
 ---
@@ -163,7 +163,7 @@ const title = iss ? `${name} — delivery record, pipeline and credit view` : `$
     <h2><span class="no">{next()}</span>Financial soundness: a fixed-income view of {iss.brand}</h2>
     <p class="why">{iss.legalName}. Latest accounts: {iss.latestFinancials}. The record from the accounts, the offering circulars and the rating agencies, with the land registry alongside it. We publish the evidence, not a credit opinion of our own.</p>
     <div class="credithead">
-      <div style="font-size:14.5px">{iss.stance.oneLine}</div>
+      {iss.stance?.oneLine && <div style="font-size:14.5px">{iss.stance.oneLine}</div>}
       <dl>
         <div><dt>Ratings</dt><dd>{iss.header.ratings}</dd></div>
         <div><dt>Gross debt</dt><dd>{iss.header.grossDebt}</dd></div>

@@ -22,7 +22,7 @@ const issuers = brandGroups.filter(g => g.issuer).map(g => ({ g, iss: issuer(g.i
     <h2 style="margin-top:0"><span class="no">1</span>Bond issuers: a fixed-income view</h2>
     <p class="why">Developers with listed sukuk, whose accounts are public. Each page carries the audited figures, credit ratios, the bonds and where they trade, the maturity wall, the agencies' actions, and what has to be repaid when.</p>
     <div class="cards">
-      {issuers.map(({ g, iss, slug }) => <a class="pcard" href={`/developers/${slug}/#credit`}><div class="bd"><div class="m">{iss.header.ratings}</div><h3>{g.name}</h3><div class="m">{iss.stance.oneLine}</div></div></a>)}
+      {issuers.map(({ g, iss, slug }) => <a class="pcard" href={`/developers/${slug}/#credit`}><div class="bd"><div class="m">{iss.header.ratings}</div><h3>{g.name}</h3><div class="m">{iss.stance?.oneLine ?? ''}</div></div></a>)}
     </div>
     <p class="reads"><b>What this shows.</b> The bond-issuing developers, with the agency ratings and a one-line summary of the record. <b>How to read it.</b> The ratings are the agencies', not ours. Click through for the accounts, the bonds, the maturity wall and the escrow model behind them, with every source named.</p>
     <h2><span class="no">2</span>Scorecard</h2>

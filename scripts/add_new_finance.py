@@ -17,9 +17,10 @@ import sys
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
 import xlsxns
 import issuer_horizons
-from issuer_inputs import cells, put, set_formula, sheet_paths
+from issuer_inputs import cells, put, set_formula, sheet_paths, set_borrowing_cost
 
 
 def main(argv):
@@ -27,11 +28,18 @@ def main(argv):
         print(__doc__)
         return 2
     src, out = argv[1], argv[2]
+    issuer_json = argv[3] if len(argv) > 3 else None
     zin = zipfile.ZipFile(src)
     paths = sheet_paths(zin)
     roots = {n: xlsxns.parse(zin.read(p)) for n, p in paths.items()}
     notes = []
     added = issuer_horizons.add_new_project_finance(roots, notes, cells, put, set_formula)
+    # D30 — the borrowing-cost numerator. The hand-finished template skips issuer_inputs.py, so
+    # without this the canonical issuer would be the one workbook still dividing TOTAL finance cost
+    # by its bank debt while every derived one uses the note's own borrowing lines.
+    if issuer_json and 'Cash flow' in roots:
+        set_borrowing_cost(roots['Cash flow'], json.load(open(issuer_json)), notes)
+        added = True
     for n in notes:
         print('  note: ' + n)
     if not added:

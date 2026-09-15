@@ -215,6 +215,47 @@ def set_formula(cmap, ref, text):
     return True
 
 
+def set_borrowing_cost(root, iss, notes):
+    """D30 — the implied bank rate is built from BORROWING cost, not total finance cost.
+
+    Cash flow B45 read Financials!D22, the reported finance cost. On an issuer whose finance cost
+    covers more than the debt in the schedule — lease liabilities, joint ventures, capitalised
+    interest, shareholder and related-party balances — the whole residual landed on the bank line
+    and the implied rate stopped meaning anything: Emaar read 22.89% where its own note says the
+    answer is 7.60%. Every issuer breaks the borrowing lines out of the note (Emaar 50% of reported
+    finance cost, Arada 69%, DAMAC ~79%, Sobha 87%, Binghatti 92%), so the numerator is those lines
+    and the sheet says what was left out. Where an issuer gave no split the reported figure stands
+    and the note says so — there is no such issuer today.
+    """
+    fc = iss.get('financeCostOnBorrowings')
+    cm = cells(root)
+    if not fc or not fc.get('aedM'):
+        put(cm, 'C45', 'This issuer\'s finance-cost note gives no split between borrowing cost and other '
+                       'finance cost, so the reported total stands and the implied rate below is an '
+                       'upper bound on the bank cost, not a measurement of it.', 's')
+        notes.append('Cash flow B45: no borrowing-cost split on file — reported finance cost stands')
+        return
+    months = fc.get('periodMonths') or 12
+    annual = float(fc['aedM']) * (12.0 / months)
+    put(cm, 'A45', f"Finance cost on borrowings ({fc.get('periodEnd','')}, annualised)", 's')
+    # B45 carried a formula (Financials!$D$22, the REPORTED total) and put() will not touch a
+    # formula cell — the first attempt at this silently changed nothing. Drop the formula, then
+    # write the figure, so the cell holds the borrowing-cost number and not a pointer to the
+    # reported one. The reported total stays on the Financials sheet, where it belongs.
+    c45 = cm.get('B45')
+    if c45 is not None:
+        for ch in list(c45):
+            c45.remove(ch)
+        c45.attrib.pop('t', None)
+    put(cm, 'B45', round(annual, 3))
+    put(cm, 'C45', f"D30. Reported finance cost for the period was AED {fc['reportedTotalAedM']:,.1f}m, of which "
+                   f"AED {fc['aedM']:,.1f}m ({fc['sharePct']}%) is the borrowing cost this rate is built from. "
+                   f"Excluded: {fc['excluded']}. Charging the whole reported figure to the bank line put "
+                   f"Emaar at 22.9% and Arada at 17.6% against a quoted 6.58%.", 's')
+    notes.append(f"Cash flow B45: borrowing cost AED {annual:,.1f}m annualised "
+                 f"({fc['sharePct']}% of reported) — D30")
+
+
 def generalise_cash_flow(root, notes):
     """The canonical Cash flow sheet is written for Binghatti's debt: rows 32-35 are its four sukuk
     and every one of the eight Debt rows carries a maturity. An issuer with three sukuk puts a
@@ -427,6 +468,7 @@ def apply(model, issuer_json, out_path, canon='Binghatti'):
     # ---- Cash flow: the canonical sheet assumes Binghatti's debt shape ----
     if 'Cash flow' in roots:
         generalise_cash_flow(roots['Cash flow'], notes)
+        set_borrowing_cost(roots['Cash flow'], iss, notes)   # D30 — after, so C45 is not overwritten
     guard_headroom(roots, notes)
     issuer_horizons.add_new_project_finance(roots, notes, cells, put, set_formula)
 

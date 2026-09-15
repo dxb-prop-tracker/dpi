@@ -293,5 +293,14 @@
     "Call schedule of the 2028 sukuk and the programme covenants not obtained",
     "Cumulative units delivered and 2026 presales in units not disclosed by the company",
     "FY2025 sales reported two ways (AED 27.6 bn proportionate; AED 30 bn including joint ventures gross)"
-  ]
+  ],
+  "financeCostOnBorrowings": {
+    "periodMonths": 6,
+    "periodEnd": "2026-06-30",
+    "aedM": 339.5,
+    "reportedTotalAedM": 389.5,
+    "sharePct": 87.2,
+    "excluded": "note 28: interest on borrowings including sukuk 339.5m of 389.5m; the remainder excluded",
+    "note": "D30: the implied bank rate is built from the lines the issuer's own note labels as profit or interest on sukuk and on bank borrowings. Everything else in reported finance cost is excluded and the Cash flow sheet prints what was excluded."
+  }
 }

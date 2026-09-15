@@ -300,5 +300,14 @@
     "Sukuk offering circulars not reviewed: call, change-of-control and cross-default terms unverified",
     "Nature of the 'multibillion-dollar pact' reported by Bloomberg on 1 September 2026 unknown",
     "Bank quotes are indicative levels, not traded prices"
-  ]
+  ],
+  "financeCostOnBorrowings": {
+    "periodMonths": 6,
+    "periodEnd": "2026-06-30",
+    "aedM": 476.9,
+    "reportedTotalAedM": 520.4,
+    "sharePct": 91.6,
+    "excluded": "note 7: sukuk 291.3m + borrowings 185.6m of 520.4m; the remainder excluded",
+    "note": "D30: the implied bank rate is built from the lines the issuer's own note labels as profit or interest on sukuk and on bank borrowings. Everything else in reported finance cost is excluded and the Cash flow sheet prints what was excluded."
+  }
 }

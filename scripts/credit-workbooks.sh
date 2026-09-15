@@ -83,7 +83,7 @@ for csvfile in "$DATA"/*-register.csv; do
   else
     # B37: a hand-finished template skips issuer_inputs.py, so the new-project-finance input has to
     # be added on its own — otherwise the one issuer without it is the one it was written for.
-    if python3 scripts/add_new_finance.py "$WORK/$issuer-data.xlsx" "$WORK/$issuer-npf.xlsx" | sed 's/^/  /'; then
+    if python3 scripts/add_new_finance.py "$WORK/$issuer-data.xlsx" "$WORK/$issuer-npf.xlsx" "$conf" | sed 's/^/  /'; then
       cp "$WORK/$issuer-npf.xlsx" "$out"
     else
       say "$issuer: new-project-finance input not added — workbook published without it"

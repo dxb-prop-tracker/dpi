@@ -182,5 +182,14 @@
     "Exact scheduled dissolution dates and ISINs for Sukuk 4 (2029) and Sukuk 5 (2031) are in their Final Terms, not on file; anniversary dates are used.",
     "Rating-agency texts (Moody's 29 May 2025; S&P 17 March 2025) are not on file; both actions are carried from secondary copies and the issuer's press release. No later action found.",
     "31 December 2025 escrow balance is printed as 42,878,923 (audited note 10), 42,199,013 (Q1 2026 comparative) and 42,869,766 (H1 2026 comparative); unexplained. The H1 set's reclassification of 670,753 thousand of deposits under lien into cash and cash equivalents is disclosed only as 'certain comparative amounts have been reclassified'."
-  ]
+  ],
+  "financeCostOnBorrowings": {
+    "periodMonths": 6,
+    "periodEnd": "2026-06-30",
+    "aedM": 234.081,
+    "reportedTotalAedM": 464.455,
+    "sharePct": 50.4,
+    "excluded": "note 6(b): finance costs on borrowings 234,081 of 464,455 thousand; other finance costs 230,374 excluded",
+    "note": "D30: the implied bank rate is built from the lines the issuer's own note labels as profit or interest on sukuk and on bank borrowings. Everything else in reported finance cost is excluded and the Cash flow sheet prints what was excluded."
+  }
 }

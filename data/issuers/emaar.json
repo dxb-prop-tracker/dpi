@@ -1,0 +1,186 @@
+{
+  "id": "emaar",
+  "brand": "Emaar",
+  "legalName": "Emaar Properties PJSC (DFM: EMAAR) — obligor under the Emaar Sukuk Limited USD 2,000,000,000 trust certificate issuance programme",
+  "dldDevelopers": [
+    "555",
+    "1211",
+    "1224",
+    "984"
+  ],
+  "asOf": "2026-09-14",
+  "balanceSheetDate": "2026-06-30",
+  "latestFinancials": "H1 2026 reviewed interim (30 June 2026, Ernst & Young, authorised 6 August 2026, filed on DFM 7 August 2026); FY2025 audited (Ernst & Young, unqualified, 12 February 2026)",
+  "header": {
+    "ratings": "Moody's Baa1, outlook stable (29 May 2025) · S&P BBB+, outlook stable (17 Mar 2025) · Fitch not rated. Both actions read through press reports; no agency text on file, and no later action found to 15 September 2026.",
+    "bondPrices": "No venue price series on file for any of the three series.",
+    "registerScope": "Partial. Dubai register developers 555 Emaar Properties, 1211 Emaar Development, 1224 Dubai Creek Harbour, 984 Dubai Hills Estate. The three 50% equity-accounted Dubai ventures (1155 Emaar Dubai South, 1237 DWTC Emaar, 950 Emaar Bawadi) are out, and the group also develops in Egypt, India and Turkiye, so the register covers part of the book the accounts cover."
+  },
+  "periods": [
+    {
+      "label": "FY2024",
+      "revenue": 35505,
+      "grossProfit": 20381,
+      "ebitda": null,
+      "netProfit": 17449,
+      "totalAssets": 160222,
+      "cash": 38632,
+      "escrow": 30755,
+      "debt": 9686,
+      "equity": 96070,
+      "contractLiabilities": 32495,
+      "backlog": 93977,
+      "sales": null,
+      "cfo": 24481,
+      "financeCost": 941
+    },
+    {
+      "label": "FY2025",
+      "revenue": 49557,
+      "grossProfit": 27227,
+      "ebitda": null,
+      "netProfit": 22326,
+      "totalAssets": 186701,
+      "cash": 52633,
+      "escrow": 42879,
+      "debt": 9806,
+      "equity": 107676,
+      "contractLiabilities": 40724,
+      "backlog": 174883,
+      "sales": null,
+      "cfo": 33458,
+      "financeCost": 1028
+    },
+    {
+      "label": "H1 2026",
+      "revenue": 23908,
+      "grossProfit": 13379,
+      "ebitda": 12900,
+      "netProfit": 11149,
+      "totalAssets": 192985,
+      "cash": 51395,
+      "escrow": 44130,
+      "debt": 9437,
+      "equity": 108883,
+      "contractLiabilities": 45510,
+      "backlog": null,
+      "sales": 26600,
+      "cfo": 11571,
+      "financeCost": 464
+    }
+  ],
+  "bonds": [
+    {
+      "name": "3.64% sukuk due 15 Sep 2026",
+      "isin": null,
+      "sizeUsdM": 750,
+      "issued": "Sep 2016, Emaar Sukuk Limited",
+      "listing": "Nasdaq Dubai",
+      "note": "Scheduled repayment date reached 15 September 2026. No DFM or Nasdaq Dubai notice of the redemption on file that day, and the next statements are not due until November, so it is carried at its 30 June amount (AED 2,753,137 thousand). Decision D18 on the product side."
+    },
+    {
+      "name": "3.875% sukuk due 17 Sep 2029",
+      "isin": null,
+      "sizeUsdM": 500,
+      "issued": "Sep 2019, Emaar Sukuk Limited",
+      "listing": "Nasdaq Dubai",
+      "note": "The statements say 'due for repayment in 2029'; the day and month are the issue anniversary, the exact scheduled dissolution date being in the Final Terms, which are not on file."
+    },
+    {
+      "name": "3.7% sukuk due 6 Jul 2031",
+      "isin": null,
+      "sizeUsdM": 500,
+      "issued": "Jul 2021, Emaar Sukuk Limited",
+      "listing": "Nasdaq Dubai",
+      "note": "As above: the statements say 'in 2031'."
+    },
+    {
+      "name": "Bank debt",
+      "sizeUsdM": 820.168,
+      "issued": "Six unsecured facilities: a UAE revolving line (AED 3,673m, drawn AED 3.673m), a UAE term loan to a Turkish subsidiary, two Egyptian, one Pakistani and one Indian facility",
+      "listing": "—",
+      "note": "AED 3,012,066 thousand at 30 June 2026 (H1 2026 note 17), of which AED 1,853,791 thousand within 12 months. The size is carried in USD like every other line, so the statement figure is converted at AED 3.6725 = USD 1: AED 3,012.066m / 3.6725 = USD 820.168m. No maturity is given here, so the line is in the schedule and not in the maturity wall."
+    }
+  ],
+  "maturityWall": [
+    {
+      "year": "H2 2026",
+      "usdM": 750,
+      "sukukUsdM": 750
+    },
+    {
+      "year": "2027",
+      "usdM": 0,
+      "sukukUsdM": 0
+    },
+    {
+      "year": "2028",
+      "usdM": 0,
+      "sukukUsdM": 0
+    },
+    {
+      "year": "2029",
+      "usdM": 500,
+      "sukukUsdM": 500
+    },
+    {
+      "year": "2031",
+      "usdM": 500,
+      "sukukUsdM": 500
+    }
+  ],
+  "ratingsHistory": [
+    {
+      "date": "2025-05-29",
+      "agency": "Moody's",
+      "action": "Long-term issuer rating upgraded to Baa1 from Baa2, outlook stable; Emaar Sukuk Limited senior unsecured and programme ratings raised to Baa1",
+      "why": "Figures the coverage attributes to the action: revenue backlog AED 127bn at March 2025; debt to book capitalisation 12% against 26% in 2020; EBIT to interest 24x against 2.3x in FY2019-20. Read through press reports; no agency text on file."
+    },
+    {
+      "date": "2025-03-17",
+      "agency": "S&P",
+      "action": "Long-term issuer credit rating raised to BBB+ from BBB, outlook stable; senior unsecured raised to BBB+",
+      "why": "Figures the report attributes to the update: backlog AED 110bn at 31 December 2024, net cash with no leverage, AED 19.1bn of discretionary cash flow, adjusted EBITDA margin 42-45% expected 2025-26, 42,003 units under development 93% presold. Read through press reports; no agency text on file."
+    }
+  ],
+  "sources": [
+    {
+      "date": "2026-08-07",
+      "title": "Emaar Properties PJSC interim condensed consolidated financial statements, 30 June 2026 (reviewed, EY)",
+      "url": "https://feeds.dfm.ae/documents/2026/Aug/7/11340cb3-ebb9-4519-ba35-6472803fd7b0/Emaar%20Properties%20PJSC%20And%20Its%20Subsidiaries%2030%20June.pdf"
+    },
+    {
+      "date": "2026-08-07",
+      "title": "Emaar Properties H1 2026 results press release (DFM filing)",
+      "url": "https://feeds.dfm.ae/documents/2026/Aug/7/52433569-0887-4100-ba14-58ee448166f1/Emaar%20Properties%20H1%202026%20Press%20Release%20%20%20English.P.pdf"
+    },
+    {
+      "date": "2026-02-12",
+      "title": "Emaar Properties PJSC consolidated financial statements, year ended 31 December 2025 (audited, EY)",
+      "url": "https://ne-cdn.eurolandir.com/press-releases-attachments./3991674/12022026140309_EmaarPropertiesPJS.pdf"
+    },
+    {
+      "date": "2021-06-27",
+      "title": "Emaar Sukuk Limited USD 2,000,000,000 trust certificate issuance programme, base prospectus",
+      "url": "https://feeds.nasdaqdubai.com/resources/2021/Jul/06/98ce00f9-879e-42da-96ae-09b68a4a6bd4/Base%20Prospectus%20dated%2027%20June%202021.pdf"
+    },
+    {
+      "date": "2026-09-14",
+      "title": "Emaar Properties — disclosure of a board meeting on 16 September 2026 (capital allocation framework)",
+      "url": "https://feeds.dfm.ae/documents/2026/Sep/14/721c2ded-b42c-484f-b29a-780a7c73e4ca/EP%20Board%20Meeting%20Disclosure%2014%20Sept%2026%20%20Signed.Pdf.pdf"
+    },
+    {
+      "date": "2025-06-11",
+      "title": "Emaar press release: S&P and Moody's upgrade Emaar's credit ratings",
+      "url": "https://www.prnewswire.com/news-releases/sp-and-moodys-upgrade-emaars-credit-ratings-citing-strong-financial-performance-and-robust-revenue-visibility-302478925.html"
+    }
+  ],
+  "gaps": [
+    "Scope rule for the three 50% joint-venture developers (1155 Emaar Dubai South, 1237 DWTC Emaar, 950 Emaar Bawadi): excluded here because they are equity-accounted (note 16), so their escrow balances are not in the AED 43.3 billion; a decision is needed on whether the product shows them under Emaar at all. Dubai Hills Estate L.L.C (984) is included as consolidated on the evidence in dld_developer_numbers_basis; the 50% Meraas share is the non-controlling interest.",
+    "Sukuk 3 (USD 750 million, carrying AED 2,753,137 thousand at 30 June 2026) fell due 15 September 2026. As at 15 September 2026 the DFM disclosure list for EMAAR carries nothing on the redemption (latest item: the 14 September board-meeting notice), no new Emaar Sukuk Limited issue in 2026 was found, and the next statements (Q3 2026) are not due until November. The instrument is carried at its 30 June amount with status 'scheduled repayment date reached; repayment not yet evidenced'. To close: a DFM or Nasdaq Dubai notice, or the Q3 2026 note 18.",
+    "The UAE revolving facility is AED 3,673,000 thousand in the FY2025 and H1 2026 notes and AED 7,346,000 thousand in the Q1 2026 note; the H1 wording is carried. Unexplained.",
+    "Exact scheduled dissolution dates and ISINs for Sukuk 4 (2029) and Sukuk 5 (2031) are in their Final Terms, not on file; anniversary dates are used.",
+    "Rating-agency texts (Moody's 29 May 2025; S&P 17 March 2025) are not on file; both actions are carried from secondary copies and the issuer's press release. No later action found.",
+    "31 December 2025 escrow balance is printed as 42,878,923 (audited note 10), 42,199,013 (Q1 2026 comparative) and 42,869,766 (H1 2026 comparative); unexplained. The H1 set's reclassification of 670,753 thousand of deposits under lien into cash and cash equivalents is disclosed only as 'certain comparative amounts have been reclassified'."
+  ]
+}

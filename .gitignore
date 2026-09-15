@@ -16,6 +16,7 @@ reports/*.zip
 reports/*.pdf
 reports/*.json
 reports/credit/*.xlsx
+reports/credit/_chk/
 reports/credit/templates/pending/
 # secrets
 .dda.json

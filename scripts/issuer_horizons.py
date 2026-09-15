@@ -48,7 +48,8 @@ def horizons_for(items, asof):
 def word(d, fmt):
     """The workbook's own date wordings, so a replacement reads like the text it replaces."""
     m = MONTHS[d.month - 1]
-    return {'long': f'{d.day} {m[:3]} {d.year}',       # 28 Feb 2027
+    return {'full': f'{d.day} {m} {d.year}',           # 28 February 2027
+            'long': f'{d.day} {m[:3]} {d.year}',       # 28 Feb 2027
             'MONTH': f'{m.upper()} {d.year}',          # FEBRUARY 2027
             'month': f'{m} {d.year}',                  # February 2027
             'short': f'{m[:3]} {d.year}',              # Feb 2027
@@ -67,7 +68,10 @@ def _plan(hz, bs_date):
             dates[f'DATE({CANON_12M.year},{CANON_12M.month},{CANON_12M.day})'] = \
                 f'DATE({twelve.year},{twelve.month},{twelve.day})'
     text = []
-    for fmt in ('long', 'MONTH', 'month', 'short', 'tiny'):
+    # 'full' first and longest: the workbook writes "the 28 February 2027 maturity" in places, and
+    # a rule that only knew "February 2027" rewrote the month and left the canonical DAY in front
+    # of it — Emaar's Break-even sheet read "the 28 September 2026 maturity" for a 15 September one.
+    for fmt in ('full', 'long', 'MONTH', 'month', 'short', 'tiny'):
         for a, b in zip(CANON_H, hz):
             if word(a, fmt) != word(b, fmt):
                 text.append((word(a, fmt), word(b, fmt)))
@@ -82,6 +86,91 @@ def _plan(hz, bs_date):
     return dates, text, twelve
 
 
+CANON_FIRST = '9.625% sukuk due 28 February 2027'
+CANON_COUNT = 'eight'
+WORDS = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight',
+         9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve', 13: 'thirteen'}
+
+
+def _canon_instrument_text(items, hz):
+    """The Dashboard headline (A9) and the Cover verdict are written around Binghatti's own first
+    sukuk and its own eight dated lines. Two things went wrong on another issuer. The coupon stayed
+    Binghatti's — the kind of wrong that reads as right. And the phrase carries the horizon date in
+    full-month form ("28 February 2027"), so the month rule rewrote only its second half and left
+    the canonical DAY standing in front of the new month: Emaar read "due 28 September 2026" for a
+    sukuk due the 15th. Replacing the whole phrase, longest-first, settles both.
+    """
+    out = []
+    dated = [i for i in items if i.get('maturity')]
+    first = next((i for i in items if i.get('maturity') == hz[0]), None)
+    if first is not None and first.get('coupon'):
+        kind = (first.get('kind') or 'sukuk').lower()
+        due = f"{hz[0].day} {hz[0].strftime('%B')} {hz[0].year}"
+        out.append((CANON_FIRST, f"{first['coupon'] * 100:g}% {kind} due {due}"))
+    if dated:
+        n = len(dated)
+        if WORDS.get(n, str(n)) != CANON_COUNT:
+            out.append((f'the {CANON_COUNT} maturities', f'the {WORDS.get(n, n)} maturities'))
+        last = max(i['maturity'] for i in dated).year
+        if last != 2031:
+            out.append((f'maturity to 2031', f'maturity to {last}'))
+            out.append((f'maturities to 2031', f'maturities to {last}'))
+    return out
+
+
+IMPLIED_RATE_NOTE = (
+    'IF($B$22<>"Implied","",'
+    'IF($B$49="","No bank debt is listed in the schedule above, so no rate can be implied from the '
+    'reported finance cost. The quoted EIBOR-plus-margin rate on the line above is used instead.",'
+    'IF($B$49>2*$B$50,"Read this rate with care. It is a residual: reported finance cost less profit '
+    'on the sukuk listed above, over the bank debt listed above. Where the reported finance cost '
+    'covers more than that debt — lease liabilities, joint ventures, interest capitalised into work '
+    'in progress — the residual is charged entirely to the bank line and the implied rate runs well '
+    'above anything a bank would quote. It is left as it stands rather than overridden, because it '
+    'overstates the interest outflow and so understates headroom. The quoted rate on the line above '
+    'is the alternative; the gap between the two is the size of the question.","")))')
+
+CANON_FACTS = ('9.625%', '7.75%, 8.125%', 'AED 1,836m')
+
+
+def clear_canon_facts(zin, blobs, roots, items, notes, xlsxns):
+    """Clear prose that states the canonical issuer's own debt figures on somebody else's sheet.
+
+    retext() clears anything that names the canonical issuer, and set_horizons() rewrites the dates.
+    Neither catches a sentence that states Binghatti's facts without naming it — "the four sukuk
+    carry coupons of 9.625%, 7.75%, 8.125% and 8.375% on AED 1,836m each". On Emaar, Sobha and Arada
+    those sentences were live on the Cash flow sheet and simply wrong. A gap with a note beside it
+    is honest; a confident sentence about the wrong company's debt is not.
+    """
+    own = {round((i.get('coupon') or 0) * 100, 4) for i in items}
+    if 9.625 in own:                     # the canonical issuer itself: leave the workbook untouched
+        return 0
+    key = 'xl/sharedStrings.xml'
+    try:
+        sst = xlsxns.parse(blobs[key]) if key in blobs else xlsxns.parse(zin.read(key))
+    except KeyError:
+        return 0
+    bad = set()
+    for i, si in enumerate(sst.findall(Q('si'))):
+        whole = ''.join(t.text or '' for t in si.iter(Q('t')))
+        if any(m in whole for m in CANON_FACTS):
+            bad.add(i)
+    if not bad:
+        return 0
+    n = 0
+    for name, root in roots.items():
+        for c in root.iter(Q('c')):
+            v = c.find(Q('v'))
+            if c.get('t') == 's' and v is not None and v.text and int(v.text) in bad:
+                for ch in list(c):
+                    c.remove(ch)
+                c.attrib.pop('t', None)
+                notes.append(f'{name}!{c.get("r")}: cleared — stated the canonical issuer\'s own '
+                             f'coupons or tower value without naming it')
+                n += 1
+    return n
+
+
 def set_horizons(zin, blobs, roots, items, asof, bs_date, notes, xlsxns, cells=None, put=None):
     """Rewrite the canonical horizons to this issuer's, in formulas and in every label that names
     them. Returns the three dates, or None when the issuer has no dated instrument left."""
@@ -91,6 +180,8 @@ def set_horizons(zin, blobs, roots, items, asof, bs_date, notes, xlsxns, cells=N
                      'canonical dates stand and the grid measures nothing — read section 6 instead')
         return None
     dates, text, twelve = _plan(hz, bs_date)
+    text += _canon_instrument_text(items, hz)
+    text.sort(key=lambda kv: -len(kv[0]))     # the whole instrument phrase before the month inside it
     if not dates and not text:
         notes.append(f"Headroom horizons: this issuer's own dates are the canonical ones "
                      f"({', '.join(word(d, 'long') for d in hz)}) — nothing rewritten")

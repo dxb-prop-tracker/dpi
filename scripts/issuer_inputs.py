@@ -230,13 +230,27 @@ def generalise_cash_flow(root, notes):
     cm = cells(root)
     set_formula(cm, 'B46', '-SUMPRODUCT(($B$32:$B$39="Sukuk")*$C$32:$C$39*Debt!$F$6:$F$13)')
     for i, r in enumerate(range(32, 40)):
-        set_formula(cm, f'G{r}', f'IF(Debt!H{6 + i}="","",(YEAR(E{r})-YEAR($B$18))*12+MONTH(E{r})-MONTH($B$18))')
+        # The grid runs from month 1. A maturity inside the as-of month itself indexes to 0 and the
+        # MATCH in the cash test (E94:G101) then found nothing: Emaar's 3.64% sukuk matures 15 Sep
+        # 2026 against an as-of of 14 Sep 2026, and every cash test, the Dashboard headline and the
+        # Break-even grid read #N/A. A maturity already inside the first grid month is tested in it.
+        set_formula(cm, f'G{r}', f'IF(Debt!H{6 + i}="","",MAX(1,(YEAR(E{r})-YEAR($B$18))*12+MONTH(E{r})-MONTH($B$18)))')
     for r in range(94, 102):
         set_formula(cm, f'E{r}', f'IF($D{r}="","",INDEX($C$71:$BN$71,1,MATCH($D{r},$C$57:$BN$57,0))+INDEX($C$68:$BN$68,1,MATCH($D{r},$C$57:$BN$57,0)))')
         set_formula(cm, f'F{r}', f'IF(OR($E{r}="",$C{r}<=0),"",$E{r}/$C{r})')
         set_formula(cm, f'G{r}', f'IF($E{r}="","",MAX(0,$C{r}-$E{r}))')
+    # B49 is the implied bank rate: interest paid / bank debt outstanding. An issuer whose schedule
+    # carries no bank line (or a bank line with no size) divides nothing by nothing, so B49 reads ""
+    # and B51 handed that empty string to every dated line's rate (D35), turning the whole sheet to
+    # #VALUE!. Where there is no bank debt to imply a rate from, the quoted rate stands.
+    set_formula(cm, 'B51', 'IF($B$22="Implied",IF($B$49="",$B$50,$B$49),$B$50)')
+    # The implied rate is a residual and runs away where the reported finance cost covers more than
+    # the debt listed here: Emaar 22.9% and Arada 17.6% against a quoted 6.58%. The arithmetic is
+    # left alone — it overstates the outflow, which understates headroom — but the sheet says so.
+    set_formula(cm, 'C51', issuer_horizons.IMPLIED_RATE_NOTE)
     notes.append('Cash flow: sukuk profit read from Debt!F6:F13; lines without a maturity date carry no '
-                 'month index and no cash test (they pay interest to the horizon, never a principal)')
+                 'month index and no cash test (they pay interest to the horizon, never a principal); '
+                 'the implied bank rate falls back to the quoted rate where there is no bank debt')
 
 
 def guard_headroom(roots, notes):
@@ -433,6 +447,7 @@ def apply(model, issuer_json, out_path, canon='Binghatti'):
         zin, blobs, roots, items,
         dt.date.fromisoformat(iss['asOf']) if iss.get('asOf') else dt.date.today(),
         dt.date.fromisoformat(bs) if bs else None, notes, xlsxns, cells, put)
+    issuer_horizons.clear_canon_facts(zin, blobs, roots, items, notes, xlsxns)
 
     if problems:
         print('REFUSED - nothing written:')

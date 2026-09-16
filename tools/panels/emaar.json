@@ -5,7 +5,8 @@
     "11 Sep 2026, plus 1275 Mina Rashid Properties, which it was missing. The authoritative scope lives in",
     "real-estate-engine/config/emaar_entity_scope_documented.csv.",
     "Definition changed on 16 Sep 2026 from the legacy one (tools/panels/emaar-legacy.json), which counted mortgages and",
-    "gifts as sales and reported a mean as a median."
+    "gifts as sales and reported a mean as a median.",
+    "An entry with project_numbers is a project-level entity: only those projects count, and its entity_id is '<developer>/<project>'. 1212/2957 and 1162/3487 were confirmed as Emaar Development sales on 16 Sep 2026."
   ],
   "output_name": "emaar_dld_quarterly_by_entity",
   "from_quarter": "2022Q1",
@@ -203,11 +204,27 @@
     {
       "developer_number": "1275",
       "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1212",
+      "project_numbers": [
+        "2957"
+      ],
+      "attribution_scope": "project — Emaar Development sale registered under Zabeel Square (Address Residences Zabeel)"
+    },
+    {
+      "developer_number": "1162",
+      "project_numbers": [
+        "3487"
+      ],
+      "attribution_scope": "project — Emaar Development sale registered under Nshama (Address Grand Downtown)"
     }
   ],
   "columns": [
     "quarter",
     "developer_number",
+    "entity_id",
+    "project_numbers",
     "legal_developer_name",
     "attribution_scope",
     "offplan_sales_count",

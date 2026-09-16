@@ -55,8 +55,13 @@ const QUARTER = `substr(t.instance_date,1,4)||'Q'||((CAST(substr(t.instance_date
 const quarterIndex = (q: string) => Number(q.slice(0, 4)) * 4 + Number(q.slice(5)) - 1;
 
 const db = openDb(true);
-const devs: { developer_number: string; attribution_scope: string }[] = cfg.developers;
-const ids = devs.map(d => d.developer_number);
+// An entity is a whole developer, or named projects of a developer when only those belong to the issuer (e.g. an
+// Emaar-branded project registered under another developer). entity_id is the developer number, or
+// "<developer>/<project>[+<project>]" for a project-level entity.
+type Entity = { developer_number: string; attribution_scope: string; project_numbers?: string[] };
+const devs: (Entity & { entity_id: string })[] = (cfg.developers as Entity[]).map(d => ({
+  ...d, entity_id: d.project_numbers?.length ? `${d.developer_number}/${d.project_numbers.join('+')}` : d.developer_number }));
+const ids = [...new Set(devs.map(d => d.developer_number))];
 const ph = ids.map(() => '?').join(',');
 
 // One read transaction: every number below comes from the same state of the database.
@@ -67,23 +72,48 @@ const build = db.transaction(() => {
   const missing = ids.filter(id => !names.has(id));
   if (missing.length) throw new Error(`developer(s) not in the register: ${missing.join(', ')}`);
 
-  const cells = db.prepare(`SELECT ${QUARTER} q, p.developer_number d,
+  // Map every in-scope project to exactly one entity. A project claimed twice would be counted twice.
+  db.exec(`CREATE TEMP TABLE IF NOT EXISTS entity_project (project_number TEXT PRIMARY KEY, entity_id TEXT NOT NULL)`);
+  db.exec(`DELETE FROM temp.entity_project`);
+  const claim = db.prepare(`INSERT INTO temp.entity_project(project_number, entity_id) VALUES (?, ?)`);
+  const ownerOf = db.prepare(`SELECT developer_number FROM project WHERE project_number = ?`);
+  for (const e of devs) {
+    const projects = e.project_numbers?.length ? e.project_numbers
+      : (db.prepare(`SELECT project_number FROM project WHERE developer_number = ?`).all(e.developer_number) as any[]).map(r => r.project_number);
+    for (const pn of projects) {
+      const owner = (ownerOf.get(pn) as any)?.developer_number;
+      if (owner !== e.developer_number) throw new Error(`${e.entity_id}: project ${pn} belongs to developer ${owner ?? 'none'}, not ${e.developer_number}`);
+      try { claim.run(pn, e.entity_id); }
+      catch { throw new Error(`project ${pn} is claimed by more than one entity (${e.entity_id})`); }
+    }
+  }
+  // Recorded, not judged: the other projects of a project-level developer that have registrations. For a developer
+  // like Nshama (1162) these are its own projects and rightly out of scope; for a single-project SPV a new entry here
+  // is a project someone should look at.
+  const unscoped = devs.filter(e => e.project_numbers?.length).flatMap(e =>
+    (db.prepare(`SELECT p.project_number, p.name_en, COUNT(t.transaction_id) n FROM project p
+       JOIN transaction_ t ON t.project_number = p.project_number
+       WHERE p.developer_number = ? AND p.project_number NOT IN (SELECT project_number FROM temp.entity_project)
+         AND t.instance_date >= ?${groupSql} GROUP BY 1, 2`).all(e.developer_number, fromDate, ...groupArgs) as any[])
+      .map(r => ({ developer_number: e.developer_number, project_number: r.project_number, name: r.name_en, registrations: r.n })));
+
+  const cells = db.prepare(`SELECT ${QUARTER} q, ep.entity_id d,
       SUM(t.reg_type_en='Off-Plan Properties') oc, SUM(CASE WHEN t.reg_type_en='Off-Plan Properties' THEN t.actual_worth ELSE 0 END) ov,
       SUM(t.reg_type_en='Existing Properties') rc, SUM(CASE WHEN t.reg_type_en='Existing Properties' THEN t.actual_worth ELSE 0 END) rv,
       COUNT(*) tc, SUM(t.actual_worth) tv,
       AVG(CASE WHEN ${psmCond} THEN t.meter_sale_price END) psm_mean,
       COUNT(DISTINCT t.project_number) ap
-    FROM transaction_ t JOIN project p ON p.project_number = t.project_number
-    WHERE p.developer_number IN (${ph}) AND t.instance_date >= @from AND t.instance_date <= @asOf${groupSql}
-    GROUP BY 1, 2`).all(...ids, ...groupArgs, { from: fromDate, asOf }) as any[];
+    FROM transaction_ t JOIN temp.entity_project ep ON ep.project_number = t.project_number
+    WHERE t.instance_date >= @from AND t.instance_date <= @asOf${groupSql}
+    GROUP BY 1, 2`).all(...groupArgs, { from: fromDate, asOf }) as any[];
   // SQLite has no median; collect the accepted prices per cell and take the middle here.
   const medians = new Map<string, number>();
   if (psmDef.statistic === 'median') {
     const prices = new Map<string, number[]>();
-    for (const r of db.prepare(`SELECT ${QUARTER} q, p.developer_number d, t.meter_sale_price v
-        FROM transaction_ t JOIN project p ON p.project_number = t.project_number
-        WHERE p.developer_number IN (${ph}) AND t.instance_date >= @from AND t.instance_date <= @asOf${groupSql}
-          AND t.meter_sale_price IS NOT NULL AND ${psmCond}`).iterate(...ids, ...groupArgs, { from: fromDate, asOf }) as any) {
+    for (const r of db.prepare(`SELECT ${QUARTER} q, ep.entity_id d, t.meter_sale_price v
+        FROM transaction_ t JOIN temp.entity_project ep ON ep.project_number = t.project_number
+        WHERE t.instance_date >= @from AND t.instance_date <= @asOf${groupSql}
+          AND t.meter_sale_price IS NOT NULL AND ${psmCond}`).iterate(...groupArgs, { from: fromDate, asOf }) as any) {
       const k = `${r.q}|${r.d}`; const a = prices.get(k) ?? []; a.push(r.v); prices.set(k, a);
     }
     for (const [k, a] of prices) {
@@ -98,16 +128,16 @@ const build = db.transaction(() => {
     FROM transaction_ t LEFT JOIN project p ON p.project_number = t.project_number
     WHERE t.instance_date >= @from AND t.instance_date <= @asOf${groupSql} GROUP BY 1`).all(...groupArgs, { from: fromDate, asOf }) as any[];
 
-  const withdrawn = (db.prepare(`SELECT COUNT(*) n FROM transaction_ t JOIN project p ON p.project_number = t.project_number
+  const withdrawn = (db.prepare(`SELECT COUNT(*) n FROM transaction_ t JOIN temp.entity_project ep ON ep.project_number = t.project_number
     JOIN vintage v ON v.kind='tx' AND v.id = t.transaction_id AND v.withdrawn_on IS NOT NULL
-    WHERE p.developer_number IN (${ph}) AND t.instance_date >= ? AND t.instance_date <= ?${groupSql}`).get(...ids, fromDate, asOf, ...groupArgs) as any).n;
+    WHERE t.instance_date >= ? AND t.instance_date <= ?${groupSql}`).get(fromDate, asOf, ...groupArgs) as any).n;
 
   const register = db.prepare(`SELECT (SELECT COUNT(*) FROM transaction_) tx, (SELECT COUNT(*) FROM project) projects,
     (SELECT COUNT(*) FROM developer) developers`).get() as any;
   const baseline = db.prepare(`SELECT * FROM vintage_baseline`).all();
-  return { asOf, names, cells, orphans, withdrawn, register, baseline };
+  return { asOf, names, cells, orphans, withdrawn, register, baseline, unscoped };
 });
-const { asOf, names, cells, orphans, withdrawn, register, baseline } = build();
+const { asOf, names, cells, orphans, withdrawn, register, baseline, unscoped } = build();
 
 const asOfQ = quarterIndex(`${asOf.slice(0, 4)}Q${Math.floor((Number(asOf.slice(5, 7)) + 2) / 3)}`);
 const orphanShare = new Map(orphans.map(o => [o.q, o.n ? o.orphan / o.n : 0]));
@@ -129,10 +159,11 @@ const attributionGap = (q: string) => (orphanShare.get(q) ?? 0) > mat.max_orphan
 const byKey = new Map(cells.map(c => [`${c.q}|${c.d}`, c]));
 const rows: Record<string, string | number>[] = [];
 for (const dev of devs) {
-  const quarters = cells.filter(c => c.d === dev.developer_number).map(c => c.q).sort();
+  const quarters = cells.filter(c => c.d === dev.entity_id).map(c => c.q).sort();
   for (const q of quarters) {
-    const c = byKey.get(`${q}|${dev.developer_number}`)!;
-    rows.push({ quarter: q, developer_number: dev.developer_number, legal_developer_name: names.get(dev.developer_number)!,
+    const c = byKey.get(`${q}|${dev.entity_id}`)!;
+    rows.push({ quarter: q, developer_number: dev.developer_number, entity_id: dev.entity_id,
+      project_numbers: (dev.project_numbers ?? []).join(';'), legal_developer_name: names.get(dev.developer_number)!,
       attribution_scope: dev.attribution_scope, offplan_sales_count: c.oc, offplan_sales_value: c.ov,
       ready_sales_count: c.rc, ready_sales_value: c.rv, total_sales_count: c.tc, total_sales_value: c.tv,
       median_price_per_sqm: c.psm ?? '', active_projects: c.ap, mapped_transaction_percentage: 100,
@@ -151,12 +182,15 @@ const manifest = {
   output: `${cfg.output_name}.csv`, sha256, rows: rows.length, generated_at: new Date().toISOString(), source_as_of: asOf,
   generator: { script: 'tools/export-developer-panel.ts', config: configPath,
     config_sha256: crypto.createHash('sha256').update(fs.readFileSync(configPath)).digest('hex'),
-    dpi_commit: git('rev-parse', 'HEAD'), // Tracked changes only: an untracked scratch file elsewhere in dpi does not change what produced this panel.
-    dpi_worktree_dirty: (git('status', '--porcelain', '--untracked-files=no') ?? '') !== '' },
+    dpi_commit: git('rev-parse', 'HEAD'),
+    // Only the files that produce the panel count: other work in progress in dpi (a .gitignore or CI edit, a scratch
+    // script) does not change what produced it and must not make its provenance look uncommitted.
+    dpi_worktree_dirty: (git('status', '--porcelain', '--', 'tools/export-developer-panel.ts', 'tools/panels', 'ingest/db.ts') ?? '') !== '' },
   database: { path: path.relative(process.cwd(), DB_PATH), bytes: stat.size, modified: stat.mtime.toISOString(), ...register,
     vintage_baseline: baseline },
   definition: def, maturity_config: mat,
-  developers: devs.map(d => ({ ...d, name: names.get(d.developer_number), quarters: rows.filter(r => r.developer_number === d.developer_number).length })),
+  developers: devs.map(d => ({ ...d, name: names.get(d.developer_number), quarters: rows.filter(r => r.entity_id === d.entity_id).length })),
+  unscoped_projects_of_project_level_developers: unscoped,
   quarters: quarters.map(q => ({ quarter: q, rows: rows.filter(r => r.quarter === q).length,
     market_orphan_share: Number((orphanShare.get(q) ?? 0).toFixed(6)), maturity: maturityOf(q), reasons: reasonsOf(q),
     attribution_gap: attributionGap(q) })),
@@ -168,7 +202,7 @@ if (!noWrite) {
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(path.join(out, `${cfg.output_name}.csv`), csv);
   fs.writeFileSync(path.join(out, `${cfg.output_name}.manifest.json`), JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`wrote ${path.relative(process.cwd(), out)}/${cfg.output_name}.csv — ${rows.length} rows, ${devs.length} developers, as of ${asOf}, sha256 ${sha256.slice(0, 12)}`);
+  console.log(`wrote ${path.relative(process.cwd(), out)}/${cfg.output_name}.csv — ${rows.length} rows, ${devs.length} entities, as of ${asOf}, sha256 ${sha256.slice(0, 12)}`);
 }
 console.log(`maturity: ${manifest.quarters.filter(q => q.maturity === 'provisional').map(q => q.quarter).join(', ') || 'none'} provisional`);
 const gaps = manifest.quarters.filter(q => q.attribution_gap);
@@ -184,13 +218,13 @@ if (reconcilePath) {
   const lines = fs.readFileSync(reconcilePath, 'utf8').replace(/^﻿/, '').trimEnd().split('\n');
   const head = parse(lines[0]);
   const legacy = lines.slice(1).map(l => Object.fromEntries(parse(l).map((v, i) => [head[i], v])));
-  const mine = new Map(rows.map(r => [`${r.quarter}|${r.developer_number}`, r]));
+  const mine = new Map(rows.map(r => [`${r.quarter}|${r.entity_id}`, r]));
   const EXACT = ['legal_developer_name', 'attribution_scope', 'offplan_sales_count', 'offplan_sales_value', 'ready_sales_count',
     'ready_sales_value', 'total_sales_count', 'total_sales_value', 'active_projects', 'mapped_transaction_percentage']
     .filter(c => COLUMNS.includes(c));
   let matched = 0, byteIdentical = 0; const problems: string[] = [];
   for (const l of legacy) {
-    const k = `${l.quarter}|${l.developer_number}`, m = mine.get(k);
+    const k = `${l.quarter}|${l.entity_id ?? l.developer_number}`, m = mine.get(k);
     if (!m) { problems.push(`${k}: in the legacy panel, not generated`); continue; }
     // Numbers compare as numbers, exactly: the legacy file wrote values of AED 10bn and over in scientific
     // notation (1.1002659382e+10), which is the same number as the 11002659382 written here.
@@ -203,10 +237,10 @@ if (reconcilePath) {
     if (bad.length) problems.push(`${k}: ${bad.join('; ')}`); else matched++;
     if (head.every(c => c === 'source_as_of' || (COLUMNS.includes(c) && String(m[c]) === l[c]))) byteIdentical++;
   }
-  const extra = rows.filter(r => !legacy.some(l => l.quarter === r.quarter && l.developer_number === r.developer_number));
+  const extra = rows.filter(r => !legacy.some(l => l.quarter === r.quarter && (l.entity_id ?? l.developer_number) === r.entity_id));
   console.log(`\nreconciliation against ${reconcilePath}`);
   console.log(`  ${matched}/${legacy.length} legacy rows match (counts and values exactly, price per sqm to 1e-9), ${byteIdentical} byte-identical apart from source_as_of`);
-  const extraDevs = [...new Set(extra.map(r => r.developer_number))];
+  const extraDevs = [...new Set(extra.map(r => r.entity_id))];
   console.log(`  ${extra.length} generated row(s) not in the legacy panel${extraDevs.length ? ` — developer(s) ${extraDevs.join(', ')}` : ''}`);
   const legacyAsOf = [...new Set(legacy.map(l => l.source_as_of).filter(Boolean))];
   if (legacyAsOf.length) console.log(`  legacy source_as_of ${legacyAsOf.join(', ')}; generated ${asOf}`);

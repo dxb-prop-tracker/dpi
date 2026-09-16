@@ -11,15 +11,19 @@
 // 16 September 2026. The reconciliation is what fixed the definition below — it was not the one the column
 // names suggest, and a generator written from the names would have been 17% out.
 //
-// The legacy definition, reproduced deliberately and recorded in the manifest:
-//   - the *_sales_* columns count EVERY registration group — Sales, Mortgages and Gifts — split by reg_type
-//     into off-plan and ready. A mortgage registration's actual_worth is the loan, not a price.
-//   - median_price_per_sqm is a MEAN of meter_sale_price over rows priced below the cap (exclusive).
-//   - active_projects is the number of distinct projects with at least one registration in the quarter.
-//   - mapped_transaction_percentage is 100 by construction: a registration is attributed to a developer only
-//     through its project, so an unattributable one never reaches a developer row. The number that actually
-//     measures attribution is the market-wide orphan share, which drives `maturity` and is in the manifest.
-// Changing any of these is a change to what the engine measures, and belongs in the config with a reason.
+// The definition is config, and there are two:
+//
+//   tools/panels/emaar.json         the panel real-estate-engine reads. Sales registrations only; ready/off-plan by
+//                                   reg_type; median_price_per_sqm is a true median over prices dpi's reports accept
+//                                   (500-200,000 AED/sqm); active_projects counts projects with a sale that quarter.
+//   tools/panels/emaar-legacy.json  the definition the hand-made panel actually used, kept so that vintage can be
+//                                   rebuilt: the *_sales_* columns counted every registration group (Sales,
+//                                   Mortgages, Gifts — a mortgage's actual_worth is the loan), median_price_per_sqm
+//                                   was a mean below 200,000, and mapped_transaction_percentage was 100 by
+//                                   construction (an unattributable registration never reaches a developer row).
+//
+// The number that does measure attribution is the orphan share — registrations under a project number we do not
+// hold, in the same registration groups as the panel — which drives `maturity` and is in the manifest.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -34,12 +38,19 @@ const reconcilePath = flag('--reconcile');
 const noWrite = args.includes('--no-write');
 const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const def = cfg.definition, mat = cfg.maturity;
-if (def.trans_groups !== 'all' || def.price_per_sqm_statistic !== 'mean' || def.exclude_withdrawn !== false)
-  throw new Error('only the legacy definition is implemented; extend the generator before changing the config');
+const groups: string[] | null = def.trans_groups === 'all' ? null : def.trans_groups;
+if (groups !== null && !(Array.isArray(groups) && groups.length)) throw new Error('definition.trans_groups must be "all" or a list');
+const psmDef = def.price_per_sqm;
+if (!['mean', 'median'].includes(psmDef?.statistic)) throw new Error('definition.price_per_sqm.statistic must be mean or median');
+if (def.exclude_withdrawn !== false) throw new Error('exclude_withdrawn is not implemented; withdrawn registrations are counted');
+const groupSql = groups ? ` AND t.trans_group_en IN (${groups.map(() => '?').join(',')})` : '';
+const groupArgs = groups ?? [];
+const psmCond = [psmDef.min_inclusive != null ? `t.meter_sale_price >= ${Number(psmDef.min_inclusive)}` : null,
+  psmDef.max_inclusive != null ? `t.meter_sale_price <= ${Number(psmDef.max_inclusive)}` : null,
+  psmDef.max_exclusive != null ? `t.meter_sale_price < ${Number(psmDef.max_exclusive)}` : null].filter(Boolean).join(' AND ') || '1';
 
-const COLUMNS = ['quarter', 'developer_number', 'legal_developer_name', 'attribution_scope', 'offplan_sales_count',
-  'offplan_sales_value', 'ready_sales_count', 'ready_sales_value', 'total_sales_count', 'total_sales_value',
-  'median_price_per_sqm', 'active_projects', 'mapped_transaction_percentage', 'source_as_of', 'maturity'];
+const COLUMNS: string[] = cfg.columns;
+if (!Array.isArray(COLUMNS) || !COLUMNS.includes('quarter')) throw new Error('config.columns must list the output columns');
 const QUARTER = `substr(t.instance_date,1,4)||'Q'||((CAST(substr(t.instance_date,6,2) AS INT)+2)/3)`;
 const quarterIndex = (q: string) => Number(q.slice(0, 4)) * 4 + Number(q.slice(5)) - 1;
 
@@ -60,20 +71,36 @@ const build = db.transaction(() => {
       SUM(t.reg_type_en='Off-Plan Properties') oc, SUM(CASE WHEN t.reg_type_en='Off-Plan Properties' THEN t.actual_worth ELSE 0 END) ov,
       SUM(t.reg_type_en='Existing Properties') rc, SUM(CASE WHEN t.reg_type_en='Existing Properties' THEN t.actual_worth ELSE 0 END) rv,
       COUNT(*) tc, SUM(t.actual_worth) tv,
-      AVG(CASE WHEN t.meter_sale_price < @cap THEN t.meter_sale_price END) psm,
+      AVG(CASE WHEN ${psmCond} THEN t.meter_sale_price END) psm_mean,
       COUNT(DISTINCT t.project_number) ap
     FROM transaction_ t JOIN project p ON p.project_number = t.project_number
-    WHERE p.developer_number IN (${ph}) AND t.instance_date >= @from AND t.instance_date <= @asOf
-    GROUP BY 1, 2`).all(...ids, { cap: def.price_per_sqm_cap_exclusive, from: fromDate, asOf }) as any[];
+    WHERE p.developer_number IN (${ph}) AND t.instance_date >= @from AND t.instance_date <= @asOf${groupSql}
+    GROUP BY 1, 2`).all(...ids, ...groupArgs, { from: fromDate, asOf }) as any[];
+  // SQLite has no median; collect the accepted prices per cell and take the middle here.
+  const medians = new Map<string, number>();
+  if (psmDef.statistic === 'median') {
+    const prices = new Map<string, number[]>();
+    for (const r of db.prepare(`SELECT ${QUARTER} q, p.developer_number d, t.meter_sale_price v
+        FROM transaction_ t JOIN project p ON p.project_number = t.project_number
+        WHERE p.developer_number IN (${ph}) AND t.instance_date >= @from AND t.instance_date <= @asOf${groupSql}
+          AND t.meter_sale_price IS NOT NULL AND ${psmCond}`).iterate(...ids, ...groupArgs, { from: fromDate, asOf }) as any) {
+      const k = `${r.q}|${r.d}`; const a = prices.get(k) ?? []; a.push(r.v); prices.set(k, a);
+    }
+    for (const [k, a] of prices) {
+      a.sort((x, y) => x - y); const m = a.length >> 1;
+      medians.set(k, a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2);
+    }
+  }
+  for (const c of cells) c.psm = psmDef.statistic === 'median' ? medians.get(`${c.q}|${c.d}`) ?? null : c.psm_mean;
 
   const orphans = db.prepare(`SELECT ${QUARTER} q, COUNT(*) n,
       SUM(p.project_number IS NULL AND IFNULL(t.project_number,'') <> '') orphan
     FROM transaction_ t LEFT JOIN project p ON p.project_number = t.project_number
-    WHERE t.instance_date >= @from AND t.instance_date <= @asOf GROUP BY 1`).all({ from: fromDate, asOf }) as any[];
+    WHERE t.instance_date >= @from AND t.instance_date <= @asOf${groupSql} GROUP BY 1`).all(...groupArgs, { from: fromDate, asOf }) as any[];
 
   const withdrawn = (db.prepare(`SELECT COUNT(*) n FROM transaction_ t JOIN project p ON p.project_number = t.project_number
     JOIN vintage v ON v.kind='tx' AND v.id = t.transaction_id AND v.withdrawn_on IS NOT NULL
-    WHERE p.developer_number IN (${ph}) AND t.instance_date >= ? AND t.instance_date <= ?`).get(...ids, fromDate, asOf) as any).n;
+    WHERE p.developer_number IN (${ph}) AND t.instance_date >= ? AND t.instance_date <= ?${groupSql}`).get(...ids, fromDate, asOf, ...groupArgs) as any).n;
 
   const register = db.prepare(`SELECT (SELECT COUNT(*) FROM transaction_) tx, (SELECT COUNT(*) FROM project) projects,
     (SELECT COUNT(*) FROM developer) developers`).get() as any;
@@ -158,7 +185,8 @@ if (reconcilePath) {
   const legacy = lines.slice(1).map(l => Object.fromEntries(parse(l).map((v, i) => [head[i], v])));
   const mine = new Map(rows.map(r => [`${r.quarter}|${r.developer_number}`, r]));
   const EXACT = ['legal_developer_name', 'attribution_scope', 'offplan_sales_count', 'offplan_sales_value', 'ready_sales_count',
-    'ready_sales_value', 'total_sales_count', 'total_sales_value', 'active_projects', 'mapped_transaction_percentage'];
+    'ready_sales_value', 'total_sales_count', 'total_sales_value', 'active_projects', 'mapped_transaction_percentage']
+    .filter(c => COLUMNS.includes(c));
   let matched = 0, byteIdentical = 0; const problems: string[] = [];
   for (const l of legacy) {
     const k = `${l.quarter}|${l.developer_number}`, m = mine.get(k);
@@ -167,12 +195,12 @@ if (reconcilePath) {
     // notation (1.1002659382e+10), which is the same number as the 11002659382 written here.
     const same = (c: string) => typeof m[c] === 'number' ? Number(l[c]) === m[c] : String(m[c]) === l[c];
     const bad = EXACT.filter(c => c in l && !same(c)).map(c => `${c} ${l[c]} → ${m[c]}`);
-    if ('median_price_per_sqm' in l) {
+    if ('median_price_per_sqm' in l && COLUMNS.includes('median_price_per_sqm')) {
       const a = Number(l.median_price_per_sqm), b = Number(m.median_price_per_sqm);
       if (Math.abs(a - b) > 1e-9 * Math.max(1, Math.abs(a))) bad.push(`median_price_per_sqm ${a} → ${b}`);
     }
     if (bad.length) problems.push(`${k}: ${bad.join('; ')}`); else matched++;
-    if (head.every(c => c === 'source_as_of' || String(m[c]) === l[c])) byteIdentical++;
+    if (head.every(c => c === 'source_as_of' || (COLUMNS.includes(c) && String(m[c]) === l[c]))) byteIdentical++;
   }
   const extra = rows.filter(r => !legacy.some(l => l.quarter === r.quarter && l.developer_number === r.developer_number));
   console.log(`\nreconciliation against ${reconcilePath}`);

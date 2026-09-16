@@ -1,23 +1,16 @@
 {
   "_comment": [
-    "Developer panel consumed by real-estate-engine (data/inbox/emaar_dld_quarterly_by_entity.csv).",
-    "Built by tools/export-developer-panel.ts. Developer list, order and attribution labels follow the hand-made panel of",
-    "11 Sep 2026, plus 1275 Mina Rashid Properties, which it was missing. The authoritative scope lives in",
-    "real-estate-engine/config/emaar_entity_scope_documented.csv.",
-    "Definition changed on 16 Sep 2026 from the legacy one (tools/panels/emaar-legacy.json), which counted mortgages and",
-    "gifts as sales and reported a mean as a median."
+    "The definition the hand-made panel of 11 Sep 2026 actually used, kept so that vintage can be rebuilt and compared.",
+    "Superseded on 16 Sep 2026 by tools/panels/emaar.json. Do not point an engine at this output."
   ],
-  "output_name": "emaar_dld_quarterly_by_entity",
+  "output_name": "emaar_dld_quarterly_by_entity.legacy-definition",
   "from_quarter": "2022Q1",
   "definition": {
-    "_comment": "Sales registrations only, split by reg_type. median_price_per_sqm is a true median over the prices dpi's own reports accept (report-lib PSM_OK, 500-200,000 AED/sqm inclusive). mapped_transaction_percentage is dropped: it was 100 by construction and measured nothing; attribution is measured by the orphan share in the manifest.",
-    "trans_groups": [
-      "Sales"
-    ],
+    "_comment": "Every registration group counted as a 'sale' (a mortgage's actual_worth is the loan); median_price_per_sqm is a mean below 200,000; mapped_transaction_percentage is 100 by construction.",
+    "trans_groups": "all",
     "price_per_sqm": {
-      "statistic": "median",
-      "min_inclusive": 500,
-      "max_inclusive": 200000
+      "statistic": "mean",
+      "max_exclusive": 200000
     },
     "exclude_withdrawn": false
   },
@@ -218,6 +211,7 @@
     "total_sales_value",
     "median_price_per_sqm",
     "active_projects",
+    "mapped_transaction_percentage",
     "source_as_of",
     "maturity"
   ]

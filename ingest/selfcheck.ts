@@ -65,6 +65,23 @@ const gone = db.prepare(`SELECT COUNT(*) n FROM vintage v WHERE v.kind='tx' AND 
   AND EXISTS (SELECT 1 FROM transaction_ t WHERE t.transaction_id=v.id AND t.feed_date IS NULL)`).get() as any;
 gone.n === 0 ? ok('withdrawals are real') : bad('withdrawals are real', `${gone.n} rows marked withdrawn that the feed never filed`);
 
+// 6. Every row carries a vintage. Without one we cannot say what our copy of the register held on a past
+// date; until 16 September 2026 only 0.5% of transactions had one. ingest/vintage-sweep.ts runs after every
+// ingest step, so a gap here means some path now writes rows after the sweep, or the sweep was taken out.
+const baselined = (db.prepare(`SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name='vintage_baseline'`).get() as any).n === 1;
+if (!baselined) bad('every row has a vintage', 'vintage_baseline is missing — ingest/vintage-sweep.ts has never run');
+else {
+  const gaps: string[] = [];
+  for (const [kind, table, id] of [['tx', 'transaction_', 'transaction_id'], ['rent', 'rent_contract', 'contract_id'],
+    ['project', 'project', 'project_number'], ['developer', 'developer', 'developer_number']]) {
+    const n = (db.prepare(`SELECT COUNT(*) n FROM ${table} s WHERE s.${id} IS NOT NULL AND NOT EXISTS
+      (SELECT 1 FROM vintage v WHERE v.kind='${kind}' AND v.id=s.${id})`).get() as any).n;
+    if (n) gaps.push(`${n.toLocaleString()} ${kind}`);
+  }
+  gaps.length === 0 ? ok('every row has a vintage', 'tx, rent, project, developer')
+    : bad('every row has a vintage', `${gaps.join(', ')} row(s) without one — run npm run vintage, then find the path that skipped it`);
+}
+
 console.log(failed ? `\n${failed} check(s) FAILED${warned ? `, ${warned} warning(s)` : ''} — do not publish this build.`
   : `\nAll checks passed${warned ? `, ${warned} warning(s)` : ''}.`);
 process.exit(failed ? 1 : 0);

@@ -151,7 +151,8 @@ const manifest = {
   output: `${cfg.output_name}.csv`, sha256, rows: rows.length, generated_at: new Date().toISOString(), source_as_of: asOf,
   generator: { script: 'tools/export-developer-panel.ts', config: configPath,
     config_sha256: crypto.createHash('sha256').update(fs.readFileSync(configPath)).digest('hex'),
-    dpi_commit: git('rev-parse', 'HEAD'), dpi_worktree_dirty: (git('status', '--porcelain') ?? '') !== '' },
+    dpi_commit: git('rev-parse', 'HEAD'), // Tracked changes only: an untracked scratch file elsewhere in dpi does not change what produced this panel.
+    dpi_worktree_dirty: (git('status', '--porcelain', '--untracked-files=no') ?? '') !== '' },
   database: { path: path.relative(process.cwd(), DB_PATH), bytes: stat.size, modified: stat.mtime.toISOString(), ...register,
     vintage_baseline: baseline },
   definition: def, maturity_config: mat,

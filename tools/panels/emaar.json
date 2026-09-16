@@ -1,0 +1,202 @@
+{
+  "_comment": [
+    "Developer panel consumed by real-estate-engine (data/inbox/emaar_dld_quarterly_by_entity.csv).",
+    "Built by tools/export-developer-panel.ts. The first 43 developers, their order and their attribution labels",
+    "reproduce the hand-made panel of 11 Sep 2026 exactly; 1275 Mina Rashid Properties was missing from it and is",
+    "added last. Its label follows the other documented JVs/subsidiaries (984, 1155, 1260), which the legacy panel",
+    "also labelled CANDIDATE; the authoritative scope lives in real-estate-engine/config/emaar_entity_scope_documented.csv."
+  ],
+  "output_name": "emaar_dld_quarterly_by_entity",
+  "from_quarter": "2022Q1",
+  "definition": {
+    "_comment": "Legacy definition, kept so the generator reproduces the existing panel. Note that the *_sales_* columns count every registration group (Sales, Mortgages, Gifts), and median_price_per_sqm is a MEAN over rows priced below the cap.",
+    "trans_groups": "all",
+    "price_per_sqm_statistic": "mean",
+    "price_per_sqm_cap_exclusive": 200000,
+    "exclude_withdrawn": false
+  },
+  "maturity": {
+    "_comment": "A quarter is provisional if it is within the trailing N quarters of source_as_of (the current, partial quarter counts as the first), or if more than max_orphan_share of that quarter's registrations market-wide carry a project number we do not hold, so cannot be attributed to any developer. On 16 Sep 2026 mature quarters ran 0.06-0.13% orphans, 2025Q4 0.80%, 2026 2.2-2.8%. The orphan rule applies only within orphan_rule_lookback_quarters, where a gap can still close; an older quarter over the threshold is reported as an attribution gap instead (2023Q4: 1.8%, two projects no source lists any more).",
+    "provisional_trailing_quarters": 2,
+    "max_orphan_share": 0.005,
+    "orphan_rule_lookback_quarters": 6
+  },
+  "developers": [
+    {
+      "developer_number": "555",
+      "attribution_scope": "direct — the listed parent itself"
+    },
+    {
+      "developer_number": "1211",
+      "attribution_scope": "direct — the listed issuer itself"
+    },
+    {
+      "developer_number": "1328",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "984",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1038",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "192",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1380",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1155",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "999",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1237",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1224",
+      "attribution_scope": "named inside EMAAR \"UAE development operations\""
+    },
+    {
+      "developer_number": "1117",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1044",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1652",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1607",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1580",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "356",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1805",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1738",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1817",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "346",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1221",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "907",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1485",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1004",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1719",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1638",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1051",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1357",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1149",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1178",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1547",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1724",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1050",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1741",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1061",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1150",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1508",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1453",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1000",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1260",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1082",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1409",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    },
+    {
+      "developer_number": "1275",
+      "attribution_scope": "CANDIDATE — attribution not documented"
+    }
+  ]
+}

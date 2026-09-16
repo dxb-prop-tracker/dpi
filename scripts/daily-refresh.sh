@@ -55,6 +55,16 @@ trap 'rmdir logs/.running 2>/dev/null' EXIT
   else
     bash scripts/notify.sh "DPI refresh: REFRESH FAILED (exit $rc)" "$LOG"
   fi
+  # RTA monthly taxi trips by operator, for the DTC engine in salik-nowcast (tools/pull-rta-taxi-trips.ts). It runs
+  # after the DLD refresh whether or not that succeeded, and never changes $rc: a failed pull keeps the previous
+  # export, is notified here, and the DTC healthcheck warns once the series is three days stale. (The wording below
+  # must not contain "exit code", which is how the 20:00 second chance recognises a successful refresh.)
+  echo "=== rta pull started $(date '+%F %T') ==="
+  npm run --silent pull:rta; rrc=$?
+  echo "=== rta pull finished $(date '+%F %T') — status $rrc ==="
+  if [ $rrc -ne 0 ]; then
+    bash scripts/notify.sh "DPI refresh: RTA taxi pull failed (status $rrc) — DTC series not updated" "$LOG"
+  fi
 } >> "$LOG" 2>&1
 
 # Keep a month of logs.

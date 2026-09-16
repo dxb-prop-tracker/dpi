@@ -45,6 +45,7 @@
     "test": "node --test tests/engine.test.mjs && python3 tests/xlsx_acceptance.py tests/fixtures/canonical.xlsx && python3 tests/escrow_parity.py tests/fixtures/canonical.xlsx",
     "preship": "bash scripts/preship.sh",
     "panel:emaar": "tsx tools/export-developer-panel.ts --config tools/panels/emaar.json",
+    "test:panel-first-sales": "tsx tools/export-developer-panel.ts --config tools/panels/emaar.json --out tmp/panel-check && tsx tools/export-developer-panel.ts --config tools/panels/emaar-sales-only.json --out tmp/panel-check && python3 tests/reconcile_developer_first_sales.py tmp/panel-check tools/panels/emaar.json",
     "test:panel": "tsx tools/export-developer-panel.ts --config tools/panels/emaar-legacy.json --no-write --reconcile tests/fixtures/developer-panel-closed-quarters.csv"
   },
   "dependencies": {

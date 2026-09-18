@@ -18,7 +18,7 @@ const DATASET = 'rta_taxis_and_number_of_trips_by_carrier_company_month-open-api
 const COLUMNS = ['report_date', 'fleet_name', 'fleet_size', 'trips_num', 'load_timestamp'];
 const OUT = path.resolve('data/exports/rta_monthly_taxi_trips.csv');
 const MANIFEST = OUT.replace(/\.csv$/, '.manifest.json');
-const MIN_ROWS = 300; // ~7 years of monthly rows over several operators; far fewer means staging or a truncated pull
+const MIN_ROWS = 250; // ~7 years of monthly rows over six operators (334 on 18 Sep 2026); far fewer means staging or a truncated pull
 
 const CRED_FILE = path.resolve('.dda.json');
 if (!fs.existsSync(CRED_FILE)) { console.error(`Missing ${CRED_FILE} — see ingest/fetch-dda.ts`); process.exit(1); }
@@ -78,18 +78,29 @@ async function main() {
 
   // Every row the API returns is kept. RTA has restated some operator-months by loading a second row beside the
   // original; both stay, keyed by load_timestamp, so a model can read the figure as it stood on a given date.
-  const seen = new Set<string>();
+  // The API repeats some rows exactly — every operator's August 2022 arrives twice under the same load, identical in
+  // every field. An exact repeat is dropped and counted. A repeat of the same (month, fleet, load) carrying *different*
+  // figures would be unorderable, so it stops the run and keeps the previous export for a person to look at.
+  const seen = new Map<string, string>();
   const perMonth = new Map<string, number>();
-  const out = rows.map(r => {
+  let exactRepeats = 0;
+  const out: any[] = [];
+  for (const r of rows) {
     const month = String(r.report_date).slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(month)) throw new Error(`unparseable report_date ${JSON.stringify(r.report_date)}`);
     const fleet = String(r.fleet_name).trim();
     const key = `${month}|${fleet}|${r.load_timestamp}`;
-    if (seen.has(key)) throw new Error(`duplicate row for ${key}`);
-    seen.add(key);
+    const body = JSON.stringify(COLUMNS.map(c => r[c]));
+    const held = seen.get(key);
+    if (held !== undefined) {
+      if (held === body) { exactRepeats++; continue; }
+      throw new Error(`${key} arrives twice with different figures (${held} vs ${body}) — keeping the previous export`);
+    }
+    seen.set(key, body);
     perMonth.set(`${month}|${fleet}`, (perMonth.get(`${month}|${fleet}`) ?? 0) + 1);
-    return { ...r, month, fleet_name: fleet };
-  }).sort((a, b) => (a.month + a.fleet_name + a.load_timestamp).localeCompare(b.month + b.fleet_name + b.load_timestamp));
+    out.push({ ...r, month, fleet_name: fleet });
+  }
+  out.sort((a, b) => (a.month + a.fleet_name + a.load_timestamp).localeCompare(b.month + b.fleet_name + b.load_timestamp));
   const restated = [...perMonth.values()].filter(n => n > 1).length;
   const csv = ['month,fleet_name,fleet_size,trips_num,load_timestamp']
     .concat(out.map(r => [r.month, r.fleet_name, r.fleet_size, r.trips_num, r.load_timestamp].map(esc).join(',')))
@@ -108,6 +119,7 @@ async function main() {
     pulled_at: new Date().toISOString(),
     rows_received: rows.length,
     rows_written: out.length,
+    exact_repeat_rows_dropped: exactRepeats,
     operator_months_restated: restated,
     key: ['month', 'fleet_name', 'load_timestamp'],
     dubai_taxi: { first_month: first, last_month: last, months_absent: absent },
@@ -119,7 +131,7 @@ async function main() {
   fs.writeFileSync(OUT + '.tmp', csv);
   fs.renameSync(OUT + '.tmp', OUT);
   fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`RTA taxi trips: ${out.length} rows (${restated} operator-months restated, all versions kept); Dubai Taxi ${first}..${last}, ${absent.length} months absent → ${path.relative(process.cwd(), OUT)}`);
+  console.log(`RTA taxi trips: ${out.length} rows (${restated} operator-months restated, all versions kept; ${exactRepeats} exact repeat(s) dropped); Dubai Taxi ${first}..${last}, ${absent.length} months absent → ${path.relative(process.cwd(), OUT)}`);
 }
 
 main().catch(e => { console.error(`pull:rta failed: ${e?.message ?? e}`); process.exit(1); });

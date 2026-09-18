@@ -240,7 +240,8 @@
     "AED 1.23 bn is owed to the company by its shareholder and key managers for land and units sold to them, unpaid; fair-value gains on units contributed to related funds flow through EBITDA — governance is the recurring agency criticism (100% family owned, Fitch ESG governance score 4)",
     "Secondary prices of 84–89 on the 2029–2031 sukuk mean any refinancing would cost 12–13%, far above the 7.75–8.4% coupons",
     "Branded ultra-luxury towers (Bugatti, Jacob & Co, Mercedes-Benz Places) are absent from the 2026 handover schedule; Moody's: 'limited execution track record in uber luxury'",
-    "36% of debt is secured on land with shareholder guarantees, structurally ahead of the sukuk; there is no committed revolving facility"
+    "36% of debt is secured on land with shareholder guarantees, structurally ahead of the sukuk; there is no committed revolving facility",
+    "Reporting quality of the headline sales figure: it appears in no financial statement, has no published definition (cancellations, VAT, registration fees, related-party and fund purchases all unstated), does not reconcile to its own quarters in FY2025, and was restated once without explanation. The audited IFRS 15 backlog note is the sounder measure of the same activity."
   ],
   "view": {
     "capacity": "On paper the business earns its interest many times over and leverage on an EBITDA basis is under two times. The problem is the shape of the cash, not the size of the profit. Almost everything the company calls cash is customer money in RERA escrow, released only as inspectors certify progress. Free cash outside escrow was AED 393 million at the end of June against AED 3.6 billion of debt falling due within a year, and the half-year burned roughly AED 1.5 billion buying land. The February 2027 sukuk (AED 1.84 billion) is therefore payable only if the ten mainstream towers scheduled for the second half of 2026 (AED 7.5 billion of value, 94% sold, about 80% collected) hand over on time and release their escrow, or if the market reopens for a refinancing. The company says AED 1.8 billion has already come in from three handovers since June.",
@@ -299,7 +300,9 @@
     "Moody's August 2026 and Fitch March 2026 releases read through press coverage, not the agencies' own texts",
     "Sukuk offering circulars not reviewed: call, change-of-control and cross-default terms unverified",
     "Nature of the 'multibillion-dollar pact' reported by Bloomberg on 1 September 2026 unknown",
-    "Bank quotes are indicative levels, not traded prices"
+    "Bank quotes are indicative levels, not traded prices",
+    "FY2025 sales KPI does not equal the sum of its own published quarters: 4,187 + 4,591 + 3,490 + 4,875 = AED 17,143m against 17,679m reported, a gap of AED 536m (834m on the restated H1 base). FY2024 ties exactly. No explanation and no reconciliation of sales to revenue or contract liabilities has been published.",
+    "H1 2025 sales restated from AED 8,778m to 8,480m between the H1 2025 and H1 2026 releases, H1 2025 EBITDA restated alongside it (2,219 to 2,184), and contract liabilities restated twice without itemisation (AED 109.7m out of FY2023, AED 419m reclassified in from accounts payable in FY2024) — none of them explained."
   ],
   "financeCostOnBorrowings": {
     "periodMonths": 6,
@@ -309,5 +312,14 @@
     "sharePct": 91.6,
     "excluded": "note 7: sukuk 291.3m + borrowings 185.6m of 520.4m; the remainder excluded",
     "note": "D30: the implied bank rate is built from the lines the issuer's own note labels as profit or interest on sukuk and on bank borrowings. Everything else in reported finance cost is excluded and the Cash flow sheet prints what was excluded."
+  },
+  "alternativeData": {
+    "asOf": "2026-09-18",
+    "source": "Dubai Land Department first-sale registrations for developer 1051 (Binghatti Developers FZE), via dpi's panel generator",
+    "finding": "Registrations measure the right thing at the right size and assign it to the wrong quarter. Over 2024 to H1 2026 they are 104% of the company's audited new sales (RPO movement plus development revenue) and 112% of the sales KPI, but 39% of registered value reaches the register 6-12 months after its project launches and 29% more than a year after, so quarterly registrations swing AED 3.4-11.1bn against an audited flow of AED 4.3-5.8bn.",
+    "apparent2025Gap": "AED 26.1bn registered against AED 17.7bn of reported FY2025 sales, 147%, is a timing artefact: H1 2025 registered 59% of reported sales and H2 229%.",
+    "identifiedNonSaleTransfers": "AED 1.74bn of development properties contributed in kind to unconsolidated real-estate funds in FY2025, AED 0.55bn of land sold to a shareholder in FY2025, AED 0.72bn of units sold to related parties in Q2 2026 (19% of that quarter's sales, settled non-cash), and units allocated to investors under arrangements accounted for as financial liabilities rather than sales. Each would register with the DLD without being a third-party sale.",
+    "forecastStatus": "NOT USABLE. A model targeting the audited RPO movement was built and backtested in the real-estate engine on 18 September 2026 and fails its gates: WAPE 87% over four holdout quarters against a trailing-four-quarter naive of 23%. A lag-deconvolution challenger was worse. Registration data does not forecast this issuer's quarterly bookings and is not used in the credit view.",
+    "engineOutputs": "real-estate-engine: outputs/binghatti_readiness.json, binghatti_backtest_detail.csv, binghatti_track_record.md; policy in config/binghatti_model_policy.json"
   }
 }

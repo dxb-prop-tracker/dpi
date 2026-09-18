@@ -1,0 +1,77 @@
+{
+  "_comment": [
+    "Developer panel for Binghatti Holding Limited, consumed by real-estate-engine.",
+    "One developer: 1051 Binghatti Developers FZE, the operating subsidiary named in the issuer's own accounts.",
+    "The DIFC vehicles (Binghatti Properties Investment 1-20, Argenti Properties Investments) are 100% owned and",
+    "consolidated and hold no DLD projects of their own; the branch entity 2709 holds none either (checked 18 Sep 2026).",
+    "Definition is the same developer_first_sales rule the Emaar panel uses, so the two are comparable."
+  ],
+  "output_name": "binghatti_dld_quarterly",
+  "from_quarter": "2022Q1",
+  "definition": {
+    "_comment": "Procedures and the home rule are dpi's issuer-data rule (ingest/issuer-data.ts). The repeat rule drops a later non-off-plan registration of a unit key first registered off-plan at the same price (0.5%); on 16 Sep 2026 that was 125 registrations, AED 0.34bn, median 492 days after the off-plan registration.",
+    "kind": "developer_first_sales",
+    "procedures": [
+      "Sell - Pre registration",
+      "Delayed Sell",
+      "Sale On Payment Plan"
+    ],
+    "home": {
+      "property_types": [
+        "Unit",
+        "Villa"
+      ],
+      "land_max_sqm": 3000
+    },
+    "repeat_rule": {
+      "first_procedure": "Sell - Pre registration",
+      "price_tolerance": 0.005,
+      "unit_key": [
+        "project_number",
+        "building_name_en",
+        "property_type_en",
+        "rooms_en",
+        "procedure_area rounded to 0.01"
+      ]
+    },
+    "price_per_sqm": {
+      "statistic": "median",
+      "min_inclusive": 500,
+      "max_inclusive": 200000
+    },
+    "exclude_withdrawn": false
+  },
+  "maturity": {
+    "_comment": "A quarter is provisional if it is within the trailing N quarters of source_as_of (the current, partial quarter counts as the first), or if more than max_orphan_share of that quarter's registrations market-wide carry a project number we do not hold, so cannot be attributed to any developer. On 16 Sep 2026 mature quarters ran 0.06-0.13% orphans, 2025Q4 0.80%, 2026 2.2-2.8%. The orphan rule applies only within orphan_rule_lookback_quarters, where a gap can still close; an older quarter over the threshold is reported as an attribution gap instead (2023Q4: 1.8%, two projects no source lists any more).",
+    "provisional_trailing_quarters": 2,
+    "max_orphan_share": 0.005,
+    "orphan_rule_lookback_quarters": 6
+  },
+  "developers": [
+    {
+      "developer_number": "1051",
+      "attribution_scope": "direct \u2014 Binghatti Developers FZE, the operating subsidiary of the issuer"
+    }
+  ],
+  "columns": [
+    "quarter",
+    "developer_number",
+    "entity_id",
+    "project_numbers",
+    "excluded_project_numbers",
+    "legal_developer_name",
+    "attribution_scope",
+    "first_sale_units",
+    "first_sale_value",
+    "offplan_first_sale_units",
+    "offplan_first_sale_value",
+    "delayed_first_sale_units",
+    "delayed_first_sale_value",
+    "repeat_registrations_dropped",
+    "repeat_value_dropped",
+    "median_price_per_sqm",
+    "active_projects",
+    "source_as_of",
+    "maturity"
+  ]
+}

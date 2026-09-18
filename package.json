@@ -46,6 +46,7 @@
     "preship": "bash scripts/preship.sh",
     "pull:rta": "tsx tools/pull-rta-taxi-trips.ts",
     "panel:emaar": "tsx tools/export-developer-panel.ts --config tools/panels/emaar.json",
+    "panel:binghatti": "tsx tools/export-developer-panel.ts --config tools/panels/binghatti.json",
     "test:panel-first-sales": "tsx tools/export-developer-panel.ts --config tools/panels/emaar.json --out tmp/panel-check && tsx tools/export-developer-panel.ts --config tools/panels/emaar-sales-only.json --out tmp/panel-check && python3 tests/reconcile_developer_first_sales.py tmp/panel-check tools/panels/emaar.json",
     "test:panel": "tsx tools/export-developer-panel.ts --config tools/panels/emaar-legacy.json --no-write --reconcile tests/fixtures/developer-panel-closed-quarters.csv"
   },
